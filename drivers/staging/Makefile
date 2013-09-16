@@ -5,6 +5,7 @@ obj-$(CONFIG_STAGING)		+= staging.o
 
 obj-y				+= serial/
 obj-y				+= media/
+obj-$(CONFIG_PRIMA_WLAN)    	+= prima/
 obj-$(CONFIG_ET131X)		+= et131x/
 obj-$(CONFIG_SLICOSS)		+= slicoss/
 obj-$(CONFIG_USBIP_CORE)	+= usbip/
