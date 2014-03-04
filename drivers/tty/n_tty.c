@@ -1263,8 +1263,6 @@ static ssize_t n_tty_read(struct tty_struct *tty, struct file *file,
 	long timeout;
 	unsigned long flags;
 	int packet;
-	struct tty_buffer *head;
-	int count;
 
 do_it_again:
 
@@ -1433,19 +1431,6 @@ do_it_again:
 		goto do_it_again;
 
 	n_tty_set_room(tty);
-	
-	if(tty->update_room_in_ldisc){
-		spin_lock_irqsave(&tty->buf.lock, flags);
-		head = tty->buf.head;
-		if (head) {
-		count = head->commit - head->read;
-			if ((count || tty->buf.head != tty->buf.tail) && tty->receive_room && !work_busy(&tty->buf.work)){
-				schedule_work(&tty->buf.work);
-			}
-		}
-		spin_unlock_irqrestore(&tty->buf.lock, flags);
-	}
-	
 	return retval;
 }
 

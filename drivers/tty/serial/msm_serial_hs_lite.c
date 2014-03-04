@@ -14,9 +14,6 @@
  * GNU General Public License for more details.
  */
 
-/* Acknowledgements:
- * This file is based on msm_serial.c, originally
- * Written by Robert Love <rlove@google.com>  */
 
 #if defined(CONFIG_SERIAL_MSM_HSL_CONSOLE) && defined(CONFIG_MAGIC_SYSRQ)
 #define SUPPORT_SYSRQ
@@ -1052,15 +1049,6 @@ static struct msm_hsl_port msm_hsl_uart_ports[] = {
 			.line = 3,
 		},
 	},
-	{
-		.uart = {
-			.iotype = UPIO_MEM,
-			.ops = &msm_hsl_uart_pops,
-			.flags = UPF_BOOT_AUTOCONF,
-			.fifosize = 64,
-			.line = 4,
-		},
-	},
 };
 
 #define UART_NR	ARRAY_SIZE(msm_hsl_uart_ports)
@@ -1116,9 +1104,7 @@ static void wait_for_xmitr(struct uart_port *port)
 	if (!(msm_hsl_read(port, regmap[vid][UARTDM_SR]) &
 			UARTDM_SR_TXEMT_BMSK)) {
 		while (!(msm_hsl_read(port, regmap[vid][UARTDM_ISR]) &
-			UARTDM_ISR_TX_READY_BMSK) &&
-		       !(msm_hsl_read(port, regmap[vid][UARTDM_SR]) &
-			UARTDM_SR_TXEMT_BMSK)) {
+			UARTDM_ISR_TX_READY_BMSK)) {
 			udelay(1);
 			touch_nmi_watchdog();
 			cpu_relax();

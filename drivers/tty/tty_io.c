@@ -44,10 +44,6 @@
 #include <linux/kmod.h>
 #include <linux/nsproxy.h>
 
-#if defined(CONFIG_MSM_SMD0_WQ)
-struct workqueue_struct *tty_wq;
-#endif
-
 #undef TTY_DEBUG_HANGUP
 
 #define TTY_PARANOIA_CHECK 1
@@ -956,29 +952,6 @@ static int tty_reopen(struct tty_struct *tty)
 	return 0;
 }
 
-/**
- *	tty_init_dev		-	initialise a tty device
- *	@driver: tty driver we are opening a device on
- *	@idx: device index
- *	@ret_tty: returned tty structure
- *
- *	Prepare a tty device. This may not be a "new" clean device but
- *	could also be an active device. The pty drivers require special
- *	handling because of this.
- *
- *	Locking:
- *		The function is called under the tty_mutex, which
- *	protects us from the tty struct or driver itself going away.
- *
- *	On exit the tty device has the line discipline attached and
- *	a reference count of 1. If a pair was created for pty/tty use
- *	and the other was a pty master then it too has a reference count of 1.
- *
- * WSH 06/09/97: Rewritten to remove races and properly clean up after a
- * failed open.  The new code protects the open with a mutex, so it's
- * really quite straightforward.  The mutex locking can probably be
- * relaxed for the (most common) case of reopening a tty.
- */
 
 struct tty_struct *tty_init_dev(struct tty_driver *driver, int idx)
 {
@@ -1138,24 +1111,6 @@ static int tty_release_checks(struct tty_struct *tty, struct tty_struct *o_tty,
 	return 0;
 }
 
-/**
- *	tty_release		-	vfs callback for close
- *	@inode: inode of tty
- *	@filp: file pointer for handle to tty
- *
- *	Called the last time each file handle is closed that references
- *	this tty. There may however be several such references.
- *
- *	Locking:
- *		Takes bkl. See tty_release_dev
- *
- * Even releasing the tty structures is a tricky business.. We have
- * to be very careful that the structures are all released at the
- * same time, as interrupts might otherwise get the wrong pointers.
- *
- * WSH 09/09/97: rewritten to avoid some nasty race conditions that could
- * lead to double frees or releasing memory still in use.
- */
 
 int tty_release(struct inode *inode, struct file *filp)
 {
@@ -2507,11 +2462,6 @@ int __init tty_init(void)
 		consdev = NULL;
 	else
 		WARN_ON(device_create_file(consdev, &dev_attr_active) < 0);
-
-#if defined(CONFIG_MSM_SMD0_WQ)
-	tty_wq = create_workqueue("tty_smd0");
-	printk(KERN_DEBUG "[TTY_IO] create tty_wq for smd0\n");
-#endif
 
 #ifdef CONFIG_VT
 	vty_init(&console_fops);

@@ -223,11 +223,6 @@ void tty_schedule_flip(struct tty_struct *tty)
 	if (tty->buf.tail != NULL)
 		tty->buf.tail->commit = tty->buf.tail->used;
 	spin_unlock_irqrestore(&tty->buf.lock, flags);
-#if defined(CONFIG_MSM_SMD0_WQ)
-	if (!strcmp(tty->name, "smd0"))
-		queue_work(tty_wq, &tty->buf.work);
-	else
-#endif
 	schedule_work(&tty->buf.work);
 }
 EXPORT_SYMBOL(tty_schedule_flip);
@@ -322,6 +317,9 @@ static void flush_to_ldisc(struct work_struct *work)
 					tty->rr_bug++;
 				}
 				left = N_TTY_BUF_SIZE - tty->read_cnt - 1;
+				if (yy && tty->rr_bug)
+					pr_err("%s: rr_bug:%d\n",
+						__func__, tty->rr_bug);
 			}
 			spin_unlock(&tty->read_lock);
 
@@ -377,14 +375,8 @@ void tty_flip_buffer_push(struct tty_struct *tty)
 
 	if (tty->low_latency)
 		flush_to_ldisc(&tty->buf.work);
-	else {
-#if defined(CONFIG_MSM_SMD0_WQ)
-		if (!strcmp(tty->name, "smd0"))
-			queue_work(tty_wq, &tty->buf.work);
-		else
-#endif
+	else
 		schedule_work(&tty->buf.work);
-	}
 }
 EXPORT_SYMBOL(tty_flip_buffer_push);
 

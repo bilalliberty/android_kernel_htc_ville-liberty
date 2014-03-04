@@ -44,16 +44,6 @@ int tty_chars_in_buffer(struct tty_struct *tty)
 }
 EXPORT_SYMBOL(tty_chars_in_buffer);
 
-/**
- *	tty_write_room		-	write queue space
- *	@tty: terminal
- *
- *	Return the number of bytes that can be queued to this device
- *	at the present time. The result should be treated as a guarantee
- *	and the driver cannot offer a value it later shrinks by more than
- *	the number of bytes written. If no method is provided 2K is always
- *	returned and data may be lost as there will be no flow control.
- */
  
 int tty_write_room(struct tty_struct *tty)
 {
