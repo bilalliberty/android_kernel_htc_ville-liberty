@@ -61,7 +61,6 @@ struct ehci_regs {
 #define CMD_FSP		(1<<14)		
 #define CMD_ASPE	(1<<13)		
 #define CMD_PSPE	(1<<12)		
-#define CMD_ITC		(0xff<<16)	
 #define CMD_PARK	(1<<11)		
 #define CMD_PARK_CNT(c)	(((c)>>8)&3)	
 #define CMD_LRESET	(1<<7)		

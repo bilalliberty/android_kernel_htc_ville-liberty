@@ -245,10 +245,8 @@ struct hc_driver {
 	void	(*log_urb_complete)(struct urb *urb, char * event,
 			unsigned extra);
 	void	(*dump_regs)(struct usb_hcd *);
-	void	(*dump_qh_qtd)(struct usb_hcd *);
-	void    (*reset_sof_bug_handler)(struct usb_hcd *hcd, u32 val);
-	
-	int	(*set_int_latency)(struct usb_hcd *hcd, int latency);
+	void	(*enable_ulpi_control)(struct usb_hcd *hcd, u32 linestate);
+	void	(*disable_ulpi_control)(struct usb_hcd *hcd);
 };
 
 extern int usb_hcd_link_urb_to_ep(struct usb_hcd *hcd, struct urb *urb);

@@ -31,69 +31,6 @@ enum pm8xxx_regulator_type {
 	PM8XXX_REGULATOR_TYPE_MAX,
 };
 
-/**
- * struct pm8xxx_vreg - regulator configuration and state data used by the
- *		pm8xxx-regulator driver
- * @rdesc:		regulator description
- * @rdesc_pc:		pin control regulator description. rdesc_pc.name == NULL
- *			implies that there is no pin control version of this
- *			regulator.
- * @type:		regulator type
- * @hpm_min_load:	minimum load in uA that will result in the regulator
- *			being set to high power mode
- * @ctrl_addr:		control register SSBI address
- * @test_addr:		test register SSBI address (not needed for all types)
- * @clk_ctrl_addr:	clock control register SSBI address (only used by SMPS
- *			type regulators)
- * @sleep_ctrl_addr:	sleep control register SSBI address (only used by SMPS
- *			type regulators)
- * @pfm_ctrl_addr:	pulse-frequency modulation control register SSBI address
- *			(only used by FTSMPS type regulators)
- * @pwr_cnfg_addr:	power configuration register SSBI address (only used by
- *			FTSMPS type regulators)
- * @pdata:		this platform data struct is filled based using the
- *			platform data pointed to in a core platform data struct
- * @rdev:		pointer to regulator device which is created with
- *			regulator_register
- * @rdev_pc:		pointer to pin controlled regulator device which is
- *			created with regulator_register
- * @dev:		pointer to pm8xxx-regulator device
- * @dev_pc:		pointer to pin control pm8xxx-regulator device
- * @pc_lock:		mutex lock to handle sharing between pin controlled and
- *			non-pin controlled versions of a given regulator.  Note,
- *			this lock must be initialized in the PMIC core driver.)
- * @save_uV:		current regulator voltage in uV
- * @mode:		current mode of the regulator
- * @write_count:	number of SSBI writes that have taken place for this
- *			regulator. This is used for debug printing to determine
- *			if a given operation is redundant.
- * @prev_write_count:	number of SSBI writes that have taken place for this
- *			regulator at the start of an operation. This is used for
- *			debug printing to determine if a given operation is
- *			redundant.
- * @is_enabled:		true if the regulator is currently enabled, false if not
- * @is_enabled_pc:	true if the pin controlled version of the regulator is
- *			currently enabled (i.e. pin control is active), false if
- *			not
- * @test_reg:		last value read from or written to each of the banks of
- *			the test register
- * @ctrl_reg:		last value read from or written to the control register
- * @clk_ctrl_reg:	last value read from or written to the clock control
- *			register
- * @sleep_ctrl_reg:	last value read from or written to the sleep control
- *			register
- * @pfm_ctrl_reg:	last value read from or written to the PFM control
- *			register
- * @pwr_cnfg_reg:	last value read from or written to the power
- *			configuration register
- *
- * This data structure should only need to be instantiated in a PMIC core driver
- * It is used to specify PMIC specific as opposed to board specific
- * configuration data.  It is also used to hold all state variables needed by
- * the pm8xxx-regulator driver as these variables need to be shared between
- * pin controlled and non-pin controlled versions of a given regulator, which
- * are probed separately.
- */
 struct pm8xxx_vreg {
 	
 	struct regulator_desc			rdesc;

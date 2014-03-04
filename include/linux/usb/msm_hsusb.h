@@ -111,10 +111,8 @@ struct msm_otg_platform_data {
 	void (*setup_gpio)(enum usb_otg_state state);
 	int pmic_id_irq;
 	bool mhl_enable;
-	char *ldo_3v3_name;
-	char *ldo_1v8_name;
-	char *vddcx_name;
 	bool disable_reset_on_disconnect;
+	bool enable_dcd;
 	bool enable_lpm_on_dev_suspend;
 	bool core_clk_always_on_workaround;
 	struct msm_bus_scale_pdata *bus_scale_table;
@@ -128,8 +126,7 @@ struct msm_otg_platform_data {
 #define TA_WAIT_VFALL	500	
 
 #ifdef CONFIG_USB_OTG
-	
-#define TA_WAIT_BCON	-1	
+#define TA_WAIT_BCON	30000	
 #else
 #define TA_WAIT_BCON	-1
 #endif
@@ -215,7 +212,6 @@ struct msm_otg {
 	int connect_type_ready;
 	struct workqueue_struct *usb_wq;
 	struct delayed_work ac_detect_work;
-	struct work_struct usb_disable_work;
 	int ac_detect_count;
 	int reset_phy_before_lpm;
 	int reset_counter;
@@ -231,7 +227,6 @@ struct msm_hsic_host_platform_data {
 	unsigned strobe;
 	unsigned data;
 	struct msm_bus_scale_pdata *bus_scale_table;
-	u32 swfi_latency;
 };
 
 struct msm_usb_host_platform_data {

@@ -1,4 +1,4 @@
-/* Copyright (c) 2010-2013, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2010-2012, Code Aurora Forum. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -68,8 +68,6 @@
 
 #define SR_CM_NOTIFY_ENABLE	0x0004
 
-#define TUN_WRITE_IO_MODE 0x0008 
-#define TUN_READ_IO_MODE  0x0004 
 #define ASYNC_IO_MODE	0x0002
 #define SYNC_IO_MODE	0x0001
 #define NO_TIMESTAMP    0xFF00
@@ -159,7 +157,6 @@ struct audio_client {
 	uint32_t         io_mode;
 	uint64_t         time_stamp;
 	atomic_t         cmd_response;
-	bool             perf_mode;
 };
 
 struct q6asm_ops {
@@ -186,12 +183,10 @@ int q6asm_audio_client_buf_free_contiguous(unsigned int dir,
 			struct audio_client *ac);
 
 int q6asm_open_read(struct audio_client *ac, uint32_t format);
-int q6asm_open_read_v2_1(struct audio_client *ac, uint32_t format);
+
 int q6asm_open_read_compressed(struct audio_client *ac, uint32_t format);
 
 int q6asm_open_write(struct audio_client *ac, uint32_t format);
-int q6asm_open_write_v2(struct audio_client *ac, uint32_t format,
-						uint16_t bit_width);
 
 int q6asm_open_write_compressed(struct audio_client *ac, uint32_t format);
 
@@ -281,15 +276,8 @@ int q6asm_enc_cfg_blk_amrwb(struct audio_client *ac, uint32_t frames_per_buf,
 int q6asm_media_format_block_pcm(struct audio_client *ac,
 			uint32_t rate, uint32_t channels);
 
-int q6asm_media_format_block_pcm_format_support(struct audio_client *ac,
-			uint32_t rate, uint32_t channels, uint16_t bit_width);
-
 int q6asm_media_format_block_multi_ch_pcm(struct audio_client *ac,
-				uint32_t rate, uint32_t channels, uint16_t bit_width);
-
-int q6asm_media_format_block_multi_ch_pcm_format_support(
-		struct audio_client *ac, uint32_t rate, uint32_t channels,
-		uint16_t bit_width);
+				uint32_t rate, uint32_t channels);
 
 int q6asm_media_format_block_aac(struct audio_client *ac,
 			struct asm_aac_cfg *cfg);
@@ -317,7 +305,7 @@ int q6asm_set_lrgain(struct audio_client *ac, int left_gain, int right_gain);
 
 int q6asm_set_mute(struct audio_client *ac, int muteflag);
 
-int q6asm_get_session_time(struct audio_client *ac, uint64_t *tstamp);
+uint64_t q6asm_get_session_time(struct audio_client *ac);
 
 int q6asm_set_io_mode(struct audio_client *ac, uint32_t mode);
 

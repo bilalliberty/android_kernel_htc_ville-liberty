@@ -26,67 +26,6 @@
 
 struct usb_ep;
 
-/**
- * struct usb_request - describes one i/o request
- * @buf: Buffer used for data.  Always provide this; some controllers
- *	only use PIO, or don't use DMA for some endpoints.
- * @dma: DMA address corresponding to 'buf'.  If you don't set this
- *	field, and the usb controller needs one, it is responsible
- *	for mapping and unmapping the buffer.
- * @sg: a scatterlist for SG-capable controllers.
- * @num_sgs: number of SG entries
- * @num_mapped_sgs: number of SG entries mapped to DMA (internal)
- * @length: Length of that data
- * @stream_id: The stream id, when USB3.0 bulk streams are being used
- * @no_interrupt: If true, hints that no completion irq is needed.
- *	Helpful sometimes with deep request queues that are handled
- *	directly by DMA controllers.
- * @zero: If true, when writing data, makes the last packet be "short"
- *     by adding a zero length packet as needed;
- * @short_not_ok: When reading data, makes short packets be
- *     treated as errors (queue stops advancing till cleanup).
- * @complete: Function called when request completes, so this request and
- *	its buffer may be re-used.  The function will always be called with
- *	interrupts disabled, and it must not sleep.
- *	Reads terminate with a short packet, or when the buffer fills,
- *	whichever comes first.  When writes terminate, some data bytes
- *	will usually still be in flight (often in a hardware fifo).
- *	Errors (for reads or writes) stop the queue from advancing
- *	until the completion function returns, so that any transfers
- *	invalidated by the error may first be dequeued.
- * @context: For use by the completion callback
- * @list: For use by the gadget driver.
- * @status: Reports completion code, zero or a negative errno.
- *	Normally, faults block the transfer queue from advancing until
- *	the completion callback returns.
- *	Code "-ESHUTDOWN" indicates completion caused by device disconnect,
- *	or when the driver disabled the endpoint.
- * @actual: Reports bytes transferred to/from the buffer.  For reads (OUT
- *	transfers) this may be less than the requested length.  If the
- *	short_not_ok flag is set, short reads are treated as errors
- *	even when status otherwise indicates successful completion.
- *	Note that for writes (IN transfers) some data bytes may still
- *	reside in a device-side FIFO when the request is reported as
- *	complete.
- *@udc_priv: Vendor private data in usage by the UDC.
- *
- * These are allocated/freed through the endpoint they're used with.  The
- * hardware's driver can add extra per-request data to the memory it returns,
- * which often avoids separate memory allocations (potential failures),
- * later when the request is queued.
- *
- * Request flags affect request handling, such as whether a zero length
- * packet is written (the "zero" flag), whether a short read should be
- * treated as an error (blocking request queue advance, the "short_not_ok"
- * flag), or hinting that an interrupt is not required (the "no_interrupt"
- * flag, for use with deep request queues).
- *
- * Bulk endpoints can use any size buffers, and can also be used for interrupt
- * transfers. interrupt-only endpoints can be much less functional.
- *
- * NOTE:  this is analogous to 'struct urb' on the host side, except that
- * it's thinner and promotes more pre-allocation.
- */
 
 struct usb_request {
 	void			*buf;
@@ -130,8 +69,6 @@ struct usb_ep_ops {
 
 	int (*fifo_status) (struct usb_ep *ep);
 	void (*fifo_flush) (struct usb_ep *ep);
-
-	void (*nuke) (struct usb_ep *ep);
 };
 
 struct usb_ep {
@@ -172,63 +109,6 @@ static inline void usb_ep_free_request(struct usb_ep *ep,
 	ep->ops->free_request(ep, req);
 }
 
-/**
- * usb_ep_queue - queues (submits) an I/O request to an endpoint.
- * @ep:the endpoint associated with the request
- * @req:the request being submitted
- * @gfp_flags: GFP_* flags to use in case the lower level driver couldn't
- *	pre-allocate all necessary memory with the request.
- *
- * This tells the device controller to perform the specified request through
- * that endpoint (reading or writing a buffer).  When the request completes,
- * including being canceled by usb_ep_dequeue(), the request's completion
- * routine is called to return the request to the driver.  Any endpoint
- * (except control endpoints like ep0) may have more than one transfer
- * request queued; they complete in FIFO order.  Once a gadget driver
- * submits a request, that request may not be examined or modified until it
- * is given back to that driver through the completion callback.
- *
- * Each request is turned into one or more packets.  The controller driver
- * never merges adjacent requests into the same packet.  OUT transfers
- * will sometimes use data that's already buffered in the hardware.
- * Drivers can rely on the fact that the first byte of the request's buffer
- * always corresponds to the first byte of some USB packet, for both
- * IN and OUT transfers.
- *
- * Bulk endpoints can queue any amount of data; the transfer is packetized
- * automatically.  The last packet will be short if the request doesn't fill it
- * out completely.  Zero length packets (ZLPs) should be avoided in portable
- * protocols since not all usb hardware can successfully handle zero length
- * packets.  (ZLPs may be explicitly written, and may be implicitly written if
- * the request 'zero' flag is set.)  Bulk endpoints may also be used
- * for interrupt transfers; but the reverse is not true, and some endpoints
- * won't support every interrupt transfer.  (Such as 768 byte packets.)
- *
- * Interrupt-only endpoints are less functional than bulk endpoints, for
- * example by not supporting queueing or not handling buffers that are
- * larger than the endpoint's maxpacket size.  They may also treat data
- * toggle differently.
- *
- * Control endpoints ... after getting a setup() callback, the driver queues
- * one response (even if it would be zero length).  That enables the
- * status ack, after transferring data as specified in the response.  Setup
- * functions may return negative error codes to generate protocol stalls.
- * (Note that some USB device controllers disallow protocol stall responses
- * in some cases.)  When control responses are deferred (the response is
- * written after the setup callback returns), then usb_ep_set_halt() may be
- * used on ep0 to trigger protocol stalls.  Depending on the controller,
- * it may not be possible to trigger a status-stage protocol stall when the
- * data stage is over, that is, from within the response's completion
- * routine.
- *
- * For periodic endpoints, like interrupt or isochronous ones, the usb host
- * arranges to poll once per interval, and the gadget driver usually will
- * have queued some data to transfer at that time.
- *
- * Returns zero, or a negative error code.  Endpoints that are not enabled
- * report errors; errors will also be
- * reported when the usb peripheral is disconnected.
- */
 static inline int usb_ep_queue(struct usb_ep *ep,
 			       struct usb_request *req, gfp_t gfp_flags)
 {
@@ -259,21 +139,6 @@ usb_ep_set_wedge(struct usb_ep *ep)
 		return ep->ops->set_halt(ep, 1);
 }
 
-/**
- * usb_ep_fifo_status - returns number of bytes in fifo, or error
- * @ep: the endpoint whose fifo status is being checked.
- *
- * FIFO endpoints may have "unclaimed data" in them in certain cases,
- * such as after aborted transfers.  Hosts may not have collected all
- * the IN data written by the gadget driver (and reported by a request
- * completion).  The gadget driver may not have collected all the data
- * written OUT to it by the host.  Drivers that need precise handling for
- * fault reporting or recovery may need to use this call.
- *
- * This returns the number of such bytes in the fifo, or a negative
- * errno if the endpoint doesn't use a FIFO or doesn't support such
- * precise handling.
- */
 static inline int usb_ep_fifo_status(struct usb_ep *ep)
 {
 	if (ep->ops->fifo_status)
@@ -288,11 +153,6 @@ static inline void usb_ep_fifo_flush(struct usb_ep *ep)
 		ep->ops->fifo_flush(ep);
 }
 
-static inline void usb_ep_nuke(struct usb_ep *ep)
-{
-	if (ep->ops->nuke)
-		ep->ops->nuke(ep);
-}
 
 
 struct usb_dcd_config_params {
@@ -346,7 +206,6 @@ struct usb_gadget {
 	const char			*name;
 	struct device			dev;
 	u8				usb_core_id;
-	int             miMaxMtu;
 };
 
 static inline void set_gadget_data(struct usb_gadget *gadget, void *data)

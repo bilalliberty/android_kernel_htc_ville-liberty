@@ -19,7 +19,6 @@
 #define USB_AHBBURST         (MSM_USB_BASE + 0x0090)
 #define USB_AHBMODE          (MSM_USB_BASE + 0x0098)
 #define USB_CAPLENGTH        (MSM_USB_BASE + 0x0100) 
-#define USB_HS_GPTIMER_BASE  (MSM_USB_BASE + 0x80)
 
 #define USB_USBCMD           (MSM_USB_BASE + 0x0140)
 #define USB_USBSTS           (MSM_USB_BASE + 0x0144)

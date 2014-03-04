@@ -19,8 +19,6 @@
 #include <linux/mmc/core.h>
 #include <linux/mmc/pm.h>
 #include <linux/android_alarm.h>
-
-#define SD_DEBOUNCE_DEBUG	1
 struct mmc_ios {
 	unsigned int	clock;			
 	unsigned short	vdd;
@@ -112,6 +110,12 @@ struct mmc_host_ops {
 struct mmc_card;
 struct device;
 
+struct background_ops_timer {
+	u64	bkops_start;
+	int	need_bkops;
+	struct alarm bkops_alarm_timer;
+};
+
 struct mmc_async_req {
 	
 	struct mmc_request	*mrq;
@@ -137,8 +141,9 @@ struct mmc_host {
 	u32			ocr_avail_sd;	
 	u32			ocr_avail_mmc;	
 	struct notifier_block	pm_notify;
-	int					tp_enable;
 	int					burst_mode;
+	struct background_ops_timer bkops_timer;
+	int					bkops_count;
 
 #define MMC_VDD_165_195		0x00000080	
 #define MMC_VDD_20_21		0x00000100	
@@ -255,8 +260,10 @@ struct mmc_host {
 #endif
 
 	int			rescan_disable;	
+	int			bkops_started;
 	int 		hpi_issued;
 	int 		bkops_trigger;
+	int 		bkops_alarm_set;
 	struct mmc_card		*card;		
 
 	wait_queue_head_t	wq;
@@ -312,18 +319,17 @@ struct mmc_host {
 	} embedded_sdio_data;
 #endif
 
+#ifdef CONFIG_MMC_PERF_PROFILING
 	struct {
 
 		unsigned long rbytes_drv;  
 		unsigned long wbytes_drv;  
-		unsigned long rcount;	
-		unsigned long wcount;	
 		ktime_t rtime_drv;	   
 		ktime_t wtime_drv;	   
 		ktime_t start;
 	} perf;
-	struct timer_list stats_timer;
 	bool perf_enable;
+#endif
 
 	struct mmc_ios saved_ios;
 	unsigned long		private[0] ____cacheline_aligned;
@@ -378,6 +384,8 @@ extern int mmc_resume_host(struct mmc_host *);
 #ifdef CONFIG_MMC_CPRM_SUPPORT
 extern int mmc_read_sd_status(struct mmc_card *card);
 #endif
+extern int mmc_bkops_resume_task(struct mmc_host *);
+extern int mmc_bkops_suspend_task(struct mmc_host *);
 extern int mmc_power_save_host(struct mmc_host *host);
 extern int mmc_power_restore_host(struct mmc_host *host);
 
@@ -386,6 +394,7 @@ extern void mmc_request_done(struct mmc_host *, struct mmc_request *);
 
 extern int mmc_cache_ctrl(struct mmc_host *, u8);
 int mmc_card_support_bkops(struct mmc_card *card);
+int mmc_card_start_bkops(struct mmc_host *host);
 static inline void mmc_signal_sdio_irq(struct mmc_host *host)
 {
 	host->ops->enable_sdio_irq(host, 0);

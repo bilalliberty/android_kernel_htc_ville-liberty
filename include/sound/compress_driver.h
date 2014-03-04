@@ -56,27 +56,6 @@ struct snd_compr_stream {
 	void *private_data;
 };
 
-/**
- * struct snd_compr_ops: compressed path DSP operations
- * @open: Open the compressed stream
- * This callback is mandatory and shall keep dsp ready to receive the stream
- * parameter
- * @free: Close the compressed stream, mandatory
- * @set_params: Sets the compressed stream parameters, mandatory
- * This can be called in during stream creation only to set codec params
- * and the stream properties
- * @get_params: retrieve the codec parameters, mandatory
- * @trigger: Trigger operations like start, pause, resume, drain, stop.
- * This callback is mandatory
- * @pointer: Retrieve current h/w pointer information. Mandatory
- * @copy: Copy the compressed data to/from userspace, Optional
- * Can't be implemented if DSP supports mmap
- * @mmap: DSP mmap method to mmap DSP memory
- * @ack: Ack for DSP when data is written to audio buffer, Optional
- * Not valid if copy is implemented
- * @get_caps: Retrieve DSP capabilities, mandatory
- * @get_codec_caps: Retrieve capabilities for a specific codec, mandatory
- */
 struct snd_compr_ops {
 	int (*open)(struct snd_compr_stream *stream);
 	int (*free)(struct snd_compr_stream *stream);

@@ -59,6 +59,5 @@ struct mtp_event {
 #define MTP_SEND_FILE_WITH_HEADER  _IOW('M', 4, struct mtp_file_range)
 
 #define MTP_SET_CPU_PERF   _IOW('M', 5, int)
-#define MTP_THREAD_SUPPORTED	_IOW('M', 64, int)
 
 #endif 

@@ -56,9 +56,6 @@ struct android_usb_platform_data {
 	int num_functions;
 	char **functions;
 
-	void (*enable_fast_charge)(bool enable);
-	bool RndisDisableMPDecision;
-
 	int usb_id_pin_gpio;
 
 	int (*update_pid_and_serial_num)(uint32_t, const char *);
@@ -82,9 +79,7 @@ struct android_usb_platform_data {
 	u32 swfi_latency;
 	int (*match)(int product_id, int intrsharing);
 	u8			usb_core_id;
-	int adb_perf_lock_on;
 	int mtp_perf_lock_on;
-	int vzw_unmount_cdrom;
 };
 
 struct usb_mass_storage_platform_data {

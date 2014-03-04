@@ -55,12 +55,6 @@
 #define USB_WVAL_ADB				0x01
 
 
-/*
- * USB feature flags are written using USB_REQ_{CLEAR,SET}_FEATURE, and
- * are read as a bit array returned by USB_REQ_GET_STATUS.  (So there
- * are at most sixteen features of each type.)  Hubs may also support a
- * new USB_REQ_TEST_AND_SET_FEATURE to put ports into L1 suspend.
- */
 #define USB_DEVICE_SELF_POWERED		0	
 #define USB_DEVICE_REMOTE_WAKEUP	1	
 #define USB_DEVICE_TEST_MODE		2	

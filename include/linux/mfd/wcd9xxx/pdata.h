@@ -70,9 +70,6 @@
 #define TABLA_DCYCLE_3839 0xE
 #define TABLA_DCYCLE_4095 0xF
 
-#define MICBIAS_EXT_BYP_CAP 0x00
-#define MICBIAS_NO_EXT_BYP_CAP 0x01
-
 struct wcd9xxx_amic {
 	u8 legacy_mode:MAX_AMIC_CHANNEL;
 	u8 txfe_enable:MAX_AMIC_CHANNEL;
@@ -90,10 +87,6 @@ struct wcd9xxx_micbias_setting {
 	u8 bias2_cfilt_sel;
 	u8 bias3_cfilt_sel;
 	u8 bias4_cfilt_sel;
-	u8 bias1_cap_mode;
-	u8 bias2_cap_mode;
-	u8 bias3_cap_mode;
-	u8 bias4_cap_mode;
 };
 
 struct wcd9xxx_ocp_setting {
