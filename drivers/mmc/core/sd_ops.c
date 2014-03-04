@@ -144,7 +144,7 @@ int mmc_send_app_op_cond(struct mmc_host *host, u32 ocr, u32 *rocr)
 		cmd.arg = ocr;
 	cmd.flags = MMC_RSP_SPI_R1 | MMC_RSP_R3 | MMC_CMD_BCR;
 
-	for (i = 300; i; i--) {
+	for (i = 100; i; i--) {
 		err = mmc_wait_for_app_cmd(host, NULL, &cmd, MMC_CMD_RETRIES);
 		if (err)
 			break;
@@ -166,13 +166,6 @@ int mmc_send_app_op_cond(struct mmc_host *host, u32 ocr, u32 *rocr)
 
 		mmc_delay(10);
 	}
-
-	if (i < 200)
-		printk(KERN_ERR "%s: ACMD 41 loop %d\n",mmc_hostname(host),i);
-
-	if (err)
-		printk(KERN_ERR "%s: ACMD 41 init process fail : resp : %#x\n",
-			mmc_hostname(host), cmd.resp[0]);
 
 	if (rocr && !mmc_host_is_spi(host))
 		*rocr = cmd.resp[0];
@@ -327,9 +320,6 @@ int mmc_sd_switch(struct mmc_card *card, int mode, int group,
 
 	return 0;
 }
-#ifdef CONFIG_WIMAX
-EXPORT_SYMBOL(mmc_sd_switch);
-#endif
 
 int mmc_app_sd_status(struct mmc_card *card, void *ssr)
 {

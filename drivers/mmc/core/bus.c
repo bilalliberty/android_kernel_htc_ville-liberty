@@ -39,10 +39,6 @@ static ssize_t mmc_type_show(struct device *dev,
 		return sprintf(buf, "SD\n");
 	case MMC_TYPE_SDIO:
 		return sprintf(buf, "SDIO\n");
-	case MMC_TYPE_SDIO_WIMAX:
-		return sprintf(buf, "SDIO(WiMAX)\n");
-   case MMC_TYPE_SDIO_WIFI:
-		return sprintf(buf, "SDIO(WiFi)\n");
 	case MMC_TYPE_SD_COMBO:
 		return sprintf(buf, "SDcombo\n");
 	default:
@@ -76,12 +72,6 @@ mmc_bus_uevent(struct device *dev, struct kobj_uevent_env *env)
 		break;
 	case MMC_TYPE_SDIO:
 		type = "SDIO";
-		break;
-	case MMC_TYPE_SDIO_WIMAX:
-		type = "SDIO(WiMAX)";
-		break;
-	case MMC_TYPE_SDIO_WIFI:
-		type = "SDIO(WiFi)";
 		break;
 	case MMC_TYPE_SD_COMBO:
 		type = "SDcombo";
@@ -262,9 +252,9 @@ int mmc_add_card(struct mmc_card *card)
 		[UHS_DDR50_BUS_SPEED] = "DDR50 ",
 	};
 
+
 	dev_set_name(&card->dev, "%s:%04x", mmc_hostname(card->host), card->rca);
-	card->state &= ~MMC_CARD_REMOVED;
-	card->do_remove = 0;
+	card->sd_removed = 0;
 
 	switch (card->type) {
 	case MMC_TYPE_MMC:
@@ -281,12 +271,6 @@ int mmc_add_card(struct mmc_card *card)
 		break;
 	case MMC_TYPE_SDIO:
 		type = "SDIO";
-		break;
-	case MMC_TYPE_SDIO_WIMAX:
-		type = "SDIO(WiMAX)";
-		break;
-	case MMC_TYPE_SDIO_WIFI:
-		type = "SDIO(WiFi)";
 		break;
 	case MMC_TYPE_SD_COMBO:
 		type = "SD-combo";
@@ -338,7 +322,7 @@ void mmc_remove_card(struct mmc_card *card)
 #endif
 
        if (mmc_card_sd(card))
-               mmc_card_set_removed(card);
+               card->sd_removed = 1;
 
 	if (mmc_card_present(card)) {
 		if (mmc_host_is_spi(card->host)) {

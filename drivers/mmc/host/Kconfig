@@ -717,19 +717,3 @@ config MMC_USHC
 
 	  Note: These controllers only support SDIO cards and do not
 	  support MMC or SD memory cards.
-
-config HTC_DISABLE_DUMMY52
-	tristate "HTC_DISABLE_DUMMY52"
-	help
-	  HTC_DISABLE_DUMMY52
-
-config WIFI_IRQ_DEBUG
-    tristate "HTC_WIFI_IRQ_DEBUG"
-	help
-	  HTC_WIFI_IRQ_DEBUG
-
-config WIFI_MMC
-    tristate "HTC_WIFI_MMC"
-	help
-   HTC_WIFI_MMC
-

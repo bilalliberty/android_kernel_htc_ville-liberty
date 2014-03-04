@@ -307,19 +307,6 @@ void sdio_writeb(struct sdio_func *func, u8 b, unsigned int addr, int *err_ret)
 }
 EXPORT_SYMBOL_GPL(sdio_writeb);
 
-/**
- *	sdio_writeb_readb - write and read a byte from SDIO function
- *	@func: SDIO function to access
- *	@write_byte: byte to write
- *	@addr: address to write to
- *	@err_ret: optional status value from transfer
- *
- *	Performs a RAW (Read after Write) operation as defined by SDIO spec -
- *	single byte is written to address space of a given SDIO function and
- *	response is read back from the same address, both using single request.
- *	If there is a problem with the operation, 0xff is returned and
- *	@err_ret will contain the error code.
- */
 u8 sdio_writeb_readb(struct sdio_func *func, u8 write_byte,
 	unsigned int addr, int *err_ret)
 {

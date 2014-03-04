@@ -23,7 +23,6 @@
 #include "mmc_ops.h"
 #include "sd_ops.h"
 
-extern char *board_get_mid(void);
 static const unsigned int tran_exp[] = {
 	10000,		100000,		1000000,	10000000,
 	0,		0,		0,		0
@@ -56,12 +55,6 @@ static const unsigned int tacc_mant[] = {
 			__res |= resp[__off-1] << ((32 - __shft) % 32);	\
 		__res & __mask;						\
 	})
-
-static unsigned int perf_degr;
-int emmc_perf_degr(void)
-{
-	return perf_degr;
-}
 
 static int mmc_decode_cid(struct mmc_card *card)
 {
@@ -269,7 +262,7 @@ static int mmc_read_ext_csd(struct mmc_card *card, u8 *ext_csd)
 	}
 
 	card->ext_csd.rev = ext_csd[EXT_CSD_REV];
-	if (card->ext_csd.rev > 7) {
+	if (card->ext_csd.rev > 6) {
 		printk(KERN_ERR "%s: unrecognised EXT_CSD revision %d\n",
 			mmc_hostname(card->host), card->ext_csd.rev);
 		err = -EINVAL;
@@ -287,10 +280,6 @@ static int mmc_read_ext_csd(struct mmc_card *card, u8 *ext_csd)
 			ext_csd[EXT_CSD_SEC_CNT + 2] << 16 |
 			ext_csd[EXT_CSD_SEC_CNT + 3] << 24;
 
-		if ((card->ext_csd.sectors > 33554432) && (!strncmp(board_get_mid(), "PN0772", 6)
-			|| !strncmp(board_get_mid(), "PN0752", 6)
-			|| !strncmp(board_get_mid(), "PN0781", 6)) )
-			card->ext_csd.sectors = 30535680;
 		
 		if (card->ext_csd.sectors > (2u * 1024 * 1024 * 1024) / 512)
 			mmc_card_set_blockaddr(card);
@@ -506,40 +495,6 @@ static int mmc_read_ext_csd(struct mmc_card *card, u8 *ext_csd)
 			ext_csd[EXT_CSD_MAX_PACKED_WRITES];
 		card->ext_csd.max_packed_reads =
 			ext_csd[EXT_CSD_MAX_PACKED_READS];
-	}
-
-	if (card->cid.manfid == SANDISK_MMC) {
-		char buf[7] = {0};
-		sprintf(buf, "%c%c%c%c%c%c", ext_csd[73], ext_csd[74], ext_csd[75],
-										ext_csd[76], ext_csd[77], ext_csd[78]);
-		strncpy(card->ext_csd.fwrev, buf, strlen(buf));
-	}
-
-	if (mmc_card_mmc(card)) {
-		char *buf;
-		int i, j;
-		ssize_t n = 0;
-		pr_info("%s: cid %08x%08x%08x%08x\n",
-			mmc_hostname(card->host),
-			card->raw_cid[0], card->raw_cid[1],
-			card->raw_cid[2], card->raw_cid[3]);
-		pr_info("%s: csd %08x%08x%08x%08x\n",
-			mmc_hostname(card->host),
-			card->raw_csd[0], card->raw_csd[1],
-			card->raw_csd[2], card->raw_csd[3]);
-
-		buf = kmalloc(512, GFP_KERNEL);
-		if (buf) {
-			for (i = 0; i < 32; i++) {
-				for (j = 511 - (16 * i); j >= 496 - (16 * i); j--)
-					n += sprintf(buf + n, "%02x", ext_csd[j]);
-				n += sprintf(buf + n, "\n");
-				pr_info("%s: ext_csd %s", mmc_hostname(card->host), buf);
-				n = 0;
-			}
-		}
-		if (buf)
-			kfree(buf);
 	}
 
 out:
@@ -800,10 +755,9 @@ err:
 
 #ifdef CONFIG_MMC_MUST_PREVENT_WP_VIOLATION
 extern unsigned int get_tamper_sf(void);
-extern unsigned int get_atsdebug(void);
 static int mmc_get_write_protection(void)
 {
-	if ((get_tamper_sf() == 1) && (get_atsdebug() != 1)) {
+	if (get_tamper_sf() == 1) {
 		set_mmc0_write_protection_type(1);
 		printk("mmc0_write_prot_type = 1\n");
 		if (get_mmc0_write_protection_type() == 1)
@@ -824,7 +778,6 @@ static int mmc_init_card(struct mmc_host *host, u32 ocr,
 	unsigned int max_dtr;
 	u32 rocr;
 	u8 *ext_csd = NULL;
-	int retry = 3;
 #ifdef CONFIG_MMC_MUST_PREVENT_WP_VIOLATION
 	mmc_get_write_protection();
 #endif
@@ -945,19 +898,7 @@ static int mmc_init_card(struct mmc_host *host, u32 ocr,
 			mmc_set_erase_size(card);
 		}
 	}
-	
-	if (card->ext_csd.rev >= 6) {
-		card->wr_perf = 14;
-		
-		if (card->cid.manfid == SAMSUNG_MMC) {
-			card->bkops_check_status = 1;
-			if (!strcmp(card->cid.prod_name, "MBG4GA"))
-				perf_degr = 1;
-			if (card->ext_csd.sec_feature_support & EXT_CSD_SEC_SANITIZE)
-				card->need_sanitize = 1;
-			pr_info("%s: set bkops_check_status & need_sanitize\n", mmc_hostname(card->host));
-		}
-	} else if (card->cid.manfid == SANDISK_MMC) {
+	if (card->cid.manfid == 0x45) {
 		
 		if ((card->ext_csd.sectors == 31105024) && !strcmp(card->cid.prod_name, "SEM16G"))
 			card->wr_perf = 12;
@@ -975,7 +916,7 @@ static int mmc_init_card(struct mmc_host *host, u32 ocr,
 			card->wr_perf = 14;
 		else
 			card->wr_perf = 11;
-	} else if (card->cid.manfid == SAMSUNG_MMC) {
+	} else if (card->cid.manfid == 0x15) {
 		
 		if ((card->ext_csd.sectors == 30777344) && !strcmp(card->cid.prod_name, "KYL00M"))
 			card->wr_perf = 11;
@@ -986,14 +927,11 @@ static int mmc_init_card(struct mmc_host *host, u32 ocr,
 		else if ((card->ext_csd.sectors == 30535680) && !strcmp(card->cid.prod_name, "MAG2GA"))
 			card->wr_perf = 14;
 		
-		else if ((card->ext_csd.sectors == 61071360) && (card->cid.fwrev == 0x7))
-			card->wr_perf = 14;
-		
 		else if (card->ext_csd.sectors == 122142720)
 			card->wr_perf = 14;
 		else
 			card->wr_perf = 11;
-	} else if (card->cid.manfid == HYNIX_MMC) {
+	} else if (card->cid.manfid == 0x90) {
 		
 		if ((card->ext_csd.sectors == 30785536) && !strncmp(card->cid.prod_name, "HAG4d", 5))
 			card->wr_perf = 12;
@@ -1140,7 +1078,6 @@ static int mmc_init_card(struct mmc_host *host, u32 ocr,
 					   mmc_hostname(card->host),
 					   1 << bus_width);
 
-do_retry:
 			err = mmc_switch(card, EXT_CSD_CMD_SET_NORMAL,
 					 EXT_CSD_BUS_WIDTH,
 					 ext_csd_bits[idx][0],
@@ -1148,16 +1085,10 @@ do_retry:
 			if (!err) {
 				mmc_set_bus_width(card->host, bus_width);
 
-				if (!(host->caps & MMC_CAP_BUS_WIDTH_TEST)) {
+				if (!(host->caps & MMC_CAP_BUS_WIDTH_TEST))
 					err = mmc_compare_ext_csds(card,
 						bus_width);
-					if (err) {
-						pr_err("%s: compare_ext_csd return %d, bus width %d, retry %d\n",
-							mmc_hostname(card->host), err, 1 << bus_width, retry);
-						if (retry-- > 0)
-							goto do_retry;
-					}
-				} else
+				else
 					err = mmc_bus_test(card, bus_width);
 				if (!err)
 					break;
@@ -1194,8 +1125,6 @@ do_retry:
 			mmc_set_timing(card->host, MMC_TIMING_UHS_DDR50);
 			mmc_set_bus_width(card->host, bus_width);
 		}
-		pr_info("%s: switch to bus width %d\n", mmc_hostname(card->host),
-			1 << bus_width);
 	}
 
 	if (card->ext_csd.hpi) {
@@ -1371,6 +1300,11 @@ static void mmc_restore_ios(struct mmc_host *host)
 	mmc_set_ios(host);
 }
 
+static int mmc_housekeeping(struct mmc_host *host, int start)
+{
+	return mmc_bkops(host->card, start);
+}
+
 static int mmc_suspend(struct mmc_host *host)
 {
 	int err = 0;
@@ -1384,7 +1318,7 @@ static int mmc_suspend(struct mmc_host *host)
 		(host->caps2 & MMC_CAP2_POWER_OFF_VCCQ_DURING_SUSPEND)) {
 		err = mmc_poweroff_notify(host, MMC_PW_OFF_NOTIFY_SHORT);
 	} else {
-		if (mmc_card_doing_bkops(host->card) || mmc_card_doing_sanitize(host->card)) {
+		if (host->bkops_started) {
 			host->bkops_trigger = 0;
 		} else {
 			if (mmc_card_can_sleep(host))
@@ -1580,6 +1514,7 @@ static const struct mmc_bus_ops mmc_ops_unsafe = {
 	.power_restore = mmc_power_restore,
 	.alive = mmc_alive,
 	.poweroff_notify = mmc_poweroff_notify,
+	.housekeeping = mmc_housekeeping,
 };
 
 static void mmc_attach_bus_ops(struct mmc_host *host)
