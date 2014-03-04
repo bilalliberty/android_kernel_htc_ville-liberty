@@ -680,7 +680,6 @@ void pwm_free(struct pwm_device *pwm)
 }
 EXPORT_SYMBOL_GPL(pwm_free);
 
-
 int pwm_config(struct pwm_device *pwm, int duty_us, int period_us)
 {
 	struct pm8xxx_pwm_period *period;
@@ -757,14 +756,9 @@ int pwm_enable(struct pwm_device *pwm)
 		if (pwm_chip->is_lpg_supported) {
 			if (pwm->dtest_mode_supported)
 				pm8xxx_pwm_set_dtest(pwm, 1);
-
-			pm8xxx_pwm_bank_sel(pwm);
 			rc = pm8xxx_pwm_bank_enable(pwm, 1);
+			pm8xxx_pwm_bank_sel(pwm);
 			pm8xxx_pwm_start(pwm, 1, 0);
-			
-			rc = pm8xxx_writeb(pwm->chip->dev->parent,
-                                   SSBI_REG_ADDR_LPG_CTL(3),
-                                   pwm->pwm_lpg_ctl[3]);
 		} else {
 			pm8xxx_pwm_enable(pwm);
 		}
