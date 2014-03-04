@@ -33,6 +33,13 @@ CONFIG_DEFCONFIG_LIST="/lib/modules/$UNAME_RELEASE/.config"
 CONFIG_HAVE_IRQ_WORK=y
 CONFIG_IRQ_WORK=y
 
+CONFIG_MODULE_FORCE_LOAD=y
+#
+# Qualcomm Atheros Prima WLAN module
+#
+CONFIG_PRIMA_WLAN=m
+# CONFIG_PRIMA_WLAN_BTAMP is not set
+CONFIG_HTC_WIFI_NVS=y 
 #
 # General setup
 #
