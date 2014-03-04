@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2011, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2011, Code Aurora Forum. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -32,11 +32,5 @@ struct compr_audio {
 	struct compr_info info;
 	uint32_t codec;
 };
-
-struct msm_compr_q6_ops {
-	int (*get_24b_audio) (void);
-};
-
-void htc_register_compr_q6_ops(struct msm_compr_q6_ops *ops);
 
 #endif 

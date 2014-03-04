@@ -1,4 +1,4 @@
-/* Copyright (c) 2011-2012, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2011-2012, Code Aurora Forum. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -20,7 +20,6 @@
 #include <linux/clk.h>
 #include <sound/core.h>
 #include <sound/pcm.h>
-#include <sound/pcm_params.h>
 #include <sound/soc.h>
 #include <sound/apr_audio.h>
 #include <sound/q6afe.h>
@@ -130,19 +129,13 @@ static int msm_dai_q6_mi2s_startup(struct snd_pcm_substream *substream,
 	dev_dbg(dai->dev, "%s: cnst list %p\n", __func__,
 		mi2s_dai_data->rate_constraint.list);
 
-	if (mi2s_dai_data->rate_constraint.list &&
-		mi2s_dai_data->bitwidth_constraint.list) {
-		if (*mi2s_dai_data->bitwidth_constraint.list == 24) {
-			dev_dbg(dai->dev, "%s: do not apply cnst list\n", __func__);
-		} else {
-			dev_dbg(dai->dev, "%s: apply cnst list\n", __func__);
-			snd_pcm_hw_constraint_list(substream->runtime, 0,
-					SNDRV_PCM_HW_PARAM_RATE,
-					&mi2s_dai_data->rate_constraint);
-			snd_pcm_hw_constraint_list(substream->runtime, 0,
-					SNDRV_PCM_HW_PARAM_SAMPLE_BITS,
-					&mi2s_dai_data->bitwidth_constraint);
-		}
+	if (mi2s_dai_data->rate_constraint.list) {
+		snd_pcm_hw_constraint_list(substream->runtime, 0,
+				SNDRV_PCM_HW_PARAM_RATE,
+				&mi2s_dai_data->rate_constraint);
+		snd_pcm_hw_constraint_list(substream->runtime, 0,
+				SNDRV_PCM_HW_PARAM_SAMPLE_BITS,
+				&mi2s_dai_data->bitwidth_constraint);
 	}
 
 	return 0;
@@ -158,7 +151,6 @@ static int msm_dai_q6_mi2s_hw_params(struct snd_pcm_substream *substream,
 		(substream->stream == SNDRV_PCM_STREAM_PLAYBACK ?
 		&mi2s_dai_data->rx_dai : &mi2s_dai_data->tx_dai);
 	struct msm_dai_q6_dai_data *dai_data = &mi2s_dai_config->mi2s_dai_data;
-	int bit_width = 16;
 
 	dai_data->channels = params_channels(params);
 	switch (dai_data->channels) {
@@ -213,18 +205,9 @@ static int msm_dai_q6_mi2s_hw_params(struct snd_pcm_substream *substream,
 	default:
 		goto error_invalid_data;
 	}
-
-	switch (params_format(params)) {
-	case SNDRV_PCM_FORMAT_S16_LE:
-		bit_width = 16;
-		break;
-	case SNDRV_PCM_FORMAT_S24_LE:
-		bit_width = 24;
-		break;
-	}
 	dai_data->rate = params_rate(params);
-	dai_data->port_config.mi2s.bitwidth = bit_width;
-	dai_data->bitwidth = bit_width;
+	dai_data->port_config.mi2s.bitwidth = 16;
+	dai_data->bitwidth = 16;
 	if (!mi2s_dai_data->rate_constraint.list) {
 		mi2s_dai_data->rate_constraint.list = &dai_data->rate;
 		mi2s_dai_data->bitwidth_constraint.list = &dai_data->bitwidth;
@@ -477,7 +460,6 @@ static int msm_dai_q6_cdc_hw_params(struct snd_pcm_hw_params *params,
 				    struct snd_soc_dai *dai, int stream)
 {
 	struct msm_dai_q6_dai_data *dai_data = dev_get_drvdata(dai->dev);
-	int bit_width = 16;
 
 	dai_data->channels = params_channels(params);
 	switch (dai_data->channels) {
@@ -496,16 +478,8 @@ static int msm_dai_q6_cdc_hw_params(struct snd_pcm_hw_params *params,
 	dev_dbg(dai->dev, " channel %d sample rate %d entered\n",
 	dai_data->channels, dai_data->rate);
 
-	switch (params_format(params)) {
-	case SNDRV_PCM_FORMAT_S16_LE:
-		bit_width = 16;
-		break;
-	case SNDRV_PCM_FORMAT_S24_LE:
-		bit_width = 24;
-		break;
-	}
 	
-	dai_data->port_config.mi2s.bitwidth = bit_width;
+	dai_data->port_config.mi2s.bitwidth = 16;
 	dai_data->port_config.mi2s.line = 1;
 	return 0;
 }
@@ -533,21 +507,12 @@ static int msm_dai_q6_slim_bus_hw_params(struct snd_pcm_hw_params *params,
 				    struct snd_soc_dai *dai, int stream)
 {
 	struct msm_dai_q6_dai_data *dai_data = dev_get_drvdata(dai->dev);
-	int bit_width = 16;
 
 	dai_data->channels = params_channels(params);
 	dai_data->rate = params_rate(params);
 
-	switch (params_format(params)) {
-	case SNDRV_PCM_FORMAT_S16_LE:
-		bit_width = 16;
-		break;
-	case SNDRV_PCM_FORMAT_S24_LE:
-		bit_width = 24;
-		break;
-	}
 	
-	dai_data->port_config.slim_sch.bit_width = bit_width;
+	dai_data->port_config.slim_sch.bit_width = 16;
 	dai_data->port_config.slim_sch.data_format = 0;
 	dai_data->port_config.slim_sch.num_channels = dai_data->channels;
 	dai_data->port_config.slim_sch.reserved = 0;
@@ -671,7 +636,6 @@ static int msm_dai_q6_afe_rtproxy_hw_params(struct snd_pcm_hw_params *params,
 				struct snd_soc_dai *dai)
 {
 	struct msm_dai_q6_dai_data *dai_data = dev_get_drvdata(dai->dev);
-	int bit_width = 16;
 
 	dai_data->rate = params_rate(params);
 	dai_data->port_config.rtproxy.num_ch =
@@ -680,15 +644,7 @@ static int msm_dai_q6_afe_rtproxy_hw_params(struct snd_pcm_hw_params *params,
 	pr_debug("channel %d entered,dai_id: %d,rate: %d\n",
 	dai_data->port_config.rtproxy.num_ch, dai->id, dai_data->rate);
 
-	switch (params_format(params)) {
-	case SNDRV_PCM_FORMAT_S16_LE:
-		bit_width = 16;
-		break;
-	case SNDRV_PCM_FORMAT_S24_LE:
-		bit_width = 24;
-		break;
-	}
-	dai_data->port_config.rtproxy.bitwidth = bit_width;
+	dai_data->port_config.rtproxy.bitwidth = 16; 
 	dai_data->port_config.rtproxy.interleaved = 1;
 	dai_data->port_config.rtproxy.frame_sz = params_period_bytes(params);
 	dai_data->port_config.rtproxy.jitter =
@@ -909,16 +865,6 @@ static int msm_dai_q6_auxpcm_prepare(struct snd_pcm_substream *substream,
 	if (IS_ERR_VALUE(rc))
 		dev_err(dai->dev, "fail to open AFE APR\n");
 
-	/*
-	 * For AUX PCM Interface the below sequence of clk
-	 * settings and opening of afe port is a strict requirement.
-	 * afe_port_start is called to make sure to make sure the port
-	 * is open before deasserting the clock line. This is
-	 * required because pcm register is not written before
-	 * clock deassert. Hence the hw does not get updated with
-	 * new setting if the below clock assert/deasset and afe_port_start
-	 * sequence is not followed.
-	 */
 
 	clk_reset(pcm_clk, CLK_RESET_ASSERT);
 
@@ -990,16 +936,6 @@ static int msm_dai_q6_sec_auxpcm_prepare(struct snd_pcm_substream *substream,
 	if (IS_ERR_VALUE(rc))
 		dev_err(dai->dev, "fail to open AFE APR\n");
 
-	/*
-	 * For AUX PCM Interface the below sequence of clk
-	 * settings and opening of afe port is a strict requirement.
-	 * afe_port_start is called to make sure to make sure the port
-	 * is open before deasserting the clock line. This is
-	 * required because pcm register is not written before
-	 * clock deassert. Hence the hw does not get updated with
-	 * new setting if the below clock assert/deasset and afe_port_start
-	 * sequence is not followed.
-	 */
 
 	clk_reset(sec_pcm_clk, CLK_RESET_ASSERT);
 
@@ -1508,7 +1444,7 @@ static struct snd_soc_dai_driver msm_dai_q6_i2s_rx_dai = {
 	.playback = {
 		.rates = SNDRV_PCM_RATE_48000 | SNDRV_PCM_RATE_8000 |
 		SNDRV_PCM_RATE_16000,
-		.formats = SNDRV_PCM_FMTBIT_S16_LE | SNDRV_PCM_FMTBIT_S24_LE,
+		.formats = SNDRV_PCM_FMTBIT_S16_LE,
 		.channels_min = 1,
 		.channels_max = 4,
 		.rate_min =     8000,
@@ -1583,7 +1519,7 @@ static struct snd_soc_dai_driver msm_dai_q6_slimbus_rx_dai = {
 	.playback = {
 		.rates = SNDRV_PCM_RATE_48000 | SNDRV_PCM_RATE_8000 |
 		SNDRV_PCM_RATE_16000,
-		.formats = SNDRV_PCM_FMTBIT_S16_LE | SNDRV_PCM_FMTBIT_S24_LE,
+		.formats = SNDRV_PCM_FMTBIT_S16_LE,
 		.channels_min = 1,
 		.channels_max = 2,
 		.rate_min =     8000,
@@ -1742,7 +1678,7 @@ static struct snd_soc_dai_driver msm_dai_q6_mi2s_dai = {
 	.playback = {
 		.rates = SNDRV_PCM_RATE_48000 | SNDRV_PCM_RATE_8000 |
 		SNDRV_PCM_RATE_16000,
-		.formats = SNDRV_PCM_FMTBIT_S16_LE | SNDRV_PCM_FMTBIT_S24_LE,
+		.formats = SNDRV_PCM_FMTBIT_S16_LE,
 		.rate_min =     8000,
 		.rate_max =	48000,
 	},
@@ -1761,7 +1697,7 @@ static struct snd_soc_dai_driver msm_dai_q6_mi2s_dai = {
 static struct snd_soc_dai_driver msm_dai_q6_slimbus_1_rx_dai = {
 	.playback = {
 		.rates = SNDRV_PCM_RATE_8000 | SNDRV_PCM_RATE_16000,
-		.formats = SNDRV_PCM_FMTBIT_S16_LE | SNDRV_PCM_FMTBIT_S24_LE,
+		.formats = SNDRV_PCM_FMTBIT_S16_LE,
 		.channels_min = 1,
 		.channels_max = 1,
 		.rate_min = 8000,

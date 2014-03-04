@@ -1,4 +1,4 @@
-/* Copyright (c) 2011-2012, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2011-2012, Code Aurora Forum. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -432,8 +432,6 @@ struct cvs_start_record_cmd {
 
 #define VSS_IVOCPROC_CMD_SET_DEVICE			0x000100C4
 
-#define VSS_IVOCPROC_CMD_SET_DEVICE_V2		0x000112C6
-
 #define VSS_IVOCPROC_CMD_SET_VP3_DATA			0x000110EB
 
 #define VSS_IVOCPROC_CMD_SET_RX_VOLUME_INDEX		0x000110EE
@@ -476,8 +474,6 @@ struct cvs_start_record_cmd {
 #define VOICE_CMD_GET_PARAM				0x00011007
 #define VOICE_EVT_GET_PARAM_ACK				0x00011008
 
-#define VSS_IVOCPROC_PORT_ID_NONE			0xFFFF
-
 struct vss_ivocproc_cmd_create_full_control_session_t {
 	uint16_t direction;
 	uint32_t tx_port_id;
@@ -496,23 +492,6 @@ struct vss_ivocproc_cmd_set_device_t {
 	uint32_t tx_topology_id;
 	int32_t rx_port_id;
 	uint32_t rx_topology_id;
-} __packed;
-
-#define VSS_IVOCPROC_VOCPROC_MODE_EC_INT_MIXING 0x00010F7C
-
-#define VSS_IVOCPROC_VOCPROC_MODE_EC_EXT_MIXING 0x00010F7D
-
-struct vss_ivocproc_cmd_set_device_v2_t {
-	uint16_t tx_port_id;
-	
-	uint32_t tx_topology_id;
-	
-	uint16_t rx_port_id;
-	
-	uint32_t rx_topology_id;
-	
-	uint32_t vocproc_mode;
-	uint16_t ec_ref_port_id;
 } __packed;
 
 struct vss_ivocproc_cmd_register_calibration_data_t {
@@ -545,11 +524,6 @@ struct cvp_command {
 struct cvp_set_device_cmd {
 	struct apr_hdr hdr;
 	struct vss_ivocproc_cmd_set_device_t cvp_set_device;
-} __packed;
-
-struct cvp_set_device_cmd_v2 {
-	struct apr_hdr hdr;
-	struct vss_ivocproc_cmd_set_device_v2_t cvp_set_device_v2;
 } __packed;
 
 struct cvp_set_vp3_data_cmd {
@@ -674,8 +648,6 @@ struct common_data {
 	uint32_t default_mute_val;
 	uint32_t default_vol_val;
 	uint32_t default_sample_val;
-	bool ec_ref_ext;
-	uint16_t ec_port_id;
 
 	
 	void *apr_q6_mvm;
@@ -739,12 +711,9 @@ uint8_t voc_get_route_flag(uint16_t session_id, uint8_t path_dir);
 #define VOICE_SESSION_NAME "Voice session"
 #define VOIP_SESSION_NAME "VoIP session"
 #define VOLTE_SESSION_NAME "VoLTE session"
-#define VOICE2_SESSION_NAME "Voice2 session"
-
+#define SGLTE_SESSION_NAME "SGLTE session"
 uint16_t voc_get_session_id(char *name);
 
 int voc_start_playback(uint32_t set);
 int voc_start_record(uint32_t port_id, uint32_t set);
-int voc_set_ext_ec_ref(uint16_t port_id, bool state);
-
 #endif

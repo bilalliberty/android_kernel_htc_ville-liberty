@@ -286,10 +286,6 @@ config SND_SOC_UDA1380
 config SND_SOC_WCD9304
 	tristate
 
-config SND_SOC_WCD9304_SWITCH_PORT
-	tristate "Switch SLIMbus ports of WCD9304 from TX1/TX2 into TX3/TX4."
-	default n
-
 config SND_SOC_WCD9310
 	tristate
 

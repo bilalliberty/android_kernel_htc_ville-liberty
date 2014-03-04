@@ -1,4 +1,4 @@
-/* Copyright (c) 2011-2013, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2011-2012, Code Aurora Forum. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -90,7 +90,6 @@ struct tabla_codec_dai_data {
 	u32 *ch_num;
 	u32 ch_act;
 	u32 ch_tot;
-	u32 bit_width;
 	u32 ch_mask;
 	wait_queue_head_t dai_wait;
 };
@@ -928,25 +927,8 @@ static void audio_vol_ramping_func(struct work_struct *work)
 	level = vol_gain - vol_control;
 	index = level > 0 ? level: -level;
 
-	if (vol_gain == vol_control){
-		if (!vol_ramp->ramp_type) {
-            pr_info("%s, force volume set without ramping value =%d\n", __func__, vol_control);
-			snd_soc_update_bits(codec, TABLA_A_RX_HPH_L_GAIN, 0x0F,
-					(HPH_RX_GAIN_MAX - vol_control));
-			snd_soc_update_bits(codec, TABLA_A_RX_HPH_R_GAIN, 0x0F,
-					(HPH_RX_GAIN_MAX- vol_control));
-		} else {
-			snd_soc_update_bits(codec, TABLA_A_RX_LINE_1_GAIN, 0x0F,
-					(HPH_RX_GAIN_MAX - vol_control));
-			snd_soc_update_bits(codec, TABLA_A_RX_LINE_2_GAIN, 0x0F,
-					(HPH_RX_GAIN_MAX - vol_control));
-			snd_soc_update_bits(codec, TABLA_A_RX_LINE_3_GAIN, 0x0F,
-					(HPH_RX_GAIN_MAX - vol_control));
-			snd_soc_update_bits(codec, TABLA_A_RX_LINE_4_GAIN, 0x0F,
-					(HPH_RX_GAIN_MAX - vol_control));
-		}
-	return;
-    }
+	if (vol_gain == vol_control)
+		return;
 
 	if (vol_ramp->ramp_type)
 		usleep_range(300000, 300000);
@@ -1132,8 +1114,6 @@ static const struct snd_kcontrol_new tabla_snd_controls[] = {
 	SOC_SINGLE_TLV("AUX_PGA_RIGHT Volume", TABLA_A_AUX_R_GAIN, 0, 39, 0,
 		aux_pga_gain),
 
-	SOC_SINGLE("MICBIAS1 PD MODE", TABLA_A_MICB_1_CTL, 0, 1, 0),
-	SOC_SINGLE("MICBIAS3 PD MODE", TABLA_A_MICB_3_CTL, 0, 1, 0),
 	SOC_SINGLE("MICBIAS1 CAPLESS Switch", TABLA_A_MICB_1_CTL, 4, 1, 1),
 	SOC_SINGLE("MICBIAS2 CAPLESS Switch", TABLA_A_MICB_2_CTL, 4, 1, 1),
 	SOC_SINGLE("MICBIAS3 CAPLESS Switch", TABLA_A_MICB_3_CTL, 4, 1, 1),
@@ -1225,51 +1205,12 @@ static const struct snd_kcontrol_new tabla_snd_controls[] = {
 				   tabla_get_compander, tabla_set_compander),
 };
 
-static int msm_slim_bw_get(struct snd_kcontrol *kcontrol,
-				struct snd_ctl_elem_value *ucontrol)
-{
-	ucontrol->value.integer.value[0] = 0;
-	return 0;
-}
-
-static int msm_slim_bw_put(struct snd_kcontrol *kcontrol,
-				struct snd_ctl_elem_value *ucontrol)
-{
-	struct wcd9xxx* tabla;
-	struct snd_soc_codec *codec = snd_kcontrol_chip(kcontrol);
-	int flag = ucontrol->value.integer.value[0];
-	codec->control_data = dev_get_drvdata(codec->dev->parent);
-	tabla = codec->control_data;
-	pr_info("%s: flag: %d\n", __func__, flag);
-
-	if (flag) {
-		if ((tabla != NULL) &&
-		    (tabla->dev != NULL) &&
-		    (tabla->dev->parent != NULL))
-			pm_runtime_get_sync(tabla->dev->parent);
-		pr_info("%s: PM_Voting:true\n", __func__);
-		slim_reservemsg_bw (tabla->slim, 24576000,true);
-	} else {
-		slim_reservemsg_bw (tabla->slim, 0,true);
-		if ((tabla != NULL) &&
-		    (tabla->dev != NULL) &&
-		    (tabla->dev->parent != NULL)) {
-			pr_info("%s: PM_Voting:false\n", __func__);
-			pm_runtime_mark_last_busy(tabla->dev->parent);
-			pm_runtime_put(tabla->dev->parent);
-		}
-	}
-	return 0;
-}
-
 static const struct snd_kcontrol_new tabla_1_x_snd_controls[] = {
 	SOC_SINGLE("MICBIAS4 CAPLESS Switch", TABLA_1_A_MICB_4_CTL, 4, 1, 1),
 };
 
 static const struct snd_kcontrol_new tabla_2_higher_snd_controls[] = {
 	SOC_SINGLE("MICBIAS4 CAPLESS Switch", TABLA_2_A_MICB_4_CTL, 4, 1, 1),
-	SOC_SINGLE_EXT("SLIM BW Set", SND_SOC_NOPM, 0, 1, 0,
-				msm_slim_bw_get, msm_slim_bw_put),
 };
 
 static const char *rx_mix1_text[] = {
@@ -2334,7 +2275,7 @@ static int tabla_codec_enable_anc(struct snd_soc_dapm_widget *w,
 			return -ENODEV;
 		}
 
-		if (!fw || (fw->size < sizeof(struct anc_header))) {
+		if (fw->size < sizeof(struct anc_header)) {
 			dev_err(codec->dev, "Not enough data\n");
 			release_firmware(fw);
 			return -ENOMEM;
@@ -3784,9 +3725,6 @@ static bool tabla_is_digital_gain_register(unsigned int reg)
 }
 static int tabla_volatile(struct snd_soc_codec *ssc, unsigned int reg)
 {
-	/* Registers lower than 0x100 are top level registers which can be
-	 * written by the Tabla core driver.
-	 */
 
 	if ((reg >= TABLA_A_CDC_MBHC_EN_CTL) || (reg < 0x100))
 		return 1;
@@ -3806,7 +3744,7 @@ static int tabla_volatile(struct snd_soc_codec *ssc, unsigned int reg)
 	return 0;
 }
 
-#define TABLA_FORMATS (SNDRV_PCM_FMTBIT_S16_LE | SNDRV_PCM_FORMAT_S24_LE)
+#define TABLA_FORMATS (SNDRV_PCM_FMTBIT_S16_LE)
 static int tabla_write(struct snd_soc_codec *codec, unsigned int reg,
 	unsigned int value)
 {
@@ -3925,10 +3863,8 @@ static int tabla_startup(struct snd_pcm_substream *substream,
 		 substream->name, substream->stream);
 	if ((tabla_core != NULL) &&
 	    (tabla_core->dev != NULL) &&
-	    (tabla_core->dev->parent != NULL)) {
+	    (tabla_core->dev->parent != NULL))
 		pm_runtime_get_sync(tabla_core->dev->parent);
-		pr_info("%s: PM_Voting:true\n", __func__);
-	}
 
 	return 0;
 }
@@ -3957,7 +3893,6 @@ static void tabla_shutdown(struct snd_pcm_substream *substream,
 	    (tabla_core->dev != NULL) &&
 	    (tabla_core->dev->parent != NULL) &&
 	    (active == 0)) {
-		pr_info("%s: PM_Voting:false\n", __func__);
 		pm_runtime_mark_last_busy(tabla_core->dev->parent);
 		pm_runtime_put(tabla_core->dev->parent);
 	}
@@ -4503,29 +4438,6 @@ static int tabla_hw_params(struct snd_pcm_substream *substream,
 			snd_soc_update_bits(codec, TABLA_A_CDC_CLK_RX_I2S_CTL,
 					0x03, (rx_fs_rate_reg_val >> 0x05));
 		} else {
-			switch (params_format(params)) {
-			case SNDRV_PCM_FORMAT_S16_LE:
-				snd_soc_update_bits(codec,
-					TABLA_A_CDC_CONN_RX_SB_B1_CTL,
-					0xFF, 0x80);
-				snd_soc_update_bits(codec,
-					TABLA_A_CDC_CONN_RX_SB_B2_CTL,
-					0xFF, 0xAA);
-				tabla->dai[dai->id - 1].bit_width = 16;
-				break;
-			case SNDRV_PCM_FORMAT_S24_LE:
-				snd_soc_update_bits(codec,
-					TABLA_A_CDC_CONN_RX_SB_B1_CTL,
-					0xFF, 0x00);
-				snd_soc_update_bits(codec,
-					TABLA_A_CDC_CONN_RX_SB_B2_CTL,
-					0xFF, 0xA8);
-				tabla->dai[dai->id - 1].bit_width = 24;
-				break;
-			default:
-				dev_err(codec->dev, "Invalid format\n");
-				break;
-			}
 			tabla->dai[dai->id - 1].rate   = params_rate(params);
 		}
 		break;
@@ -4717,7 +4629,6 @@ static int tabla_codec_enable_slimrx(struct snd_soc_dapm_widget *w,
 		if (event == SND_SOC_DAPM_POST_PMD && (tabla != NULL) &&
 		    (tabla->dev != NULL) &&
 		    (tabla->dev->parent != NULL)) {
-			pr_info("%s: PM_Voting:false\n", __func__);
 			pm_runtime_mark_last_busy(tabla->dev->parent);
 			pm_runtime_put(tabla->dev->parent);
 		}
@@ -4739,24 +4650,14 @@ static int tabla_codec_enable_slimrx(struct snd_soc_dapm_widget *w,
 				break;
 			}
 		}
-
-		if(j >= ARRAY_SIZE(tabla_dai))
-			break;
 		if (tabla_p->dai[j].ch_act == tabla_p->dai[j].ch_tot) {
 			ret = tabla_codec_enable_chmask(tabla_p,
 							SND_SOC_DAPM_POST_PMU,
 							j);
-
-			
-			if (tabla_p->dai[j].bit_width == 0)
-				tabla_p->dai[j].bit_width = 16;
-			
-
 			ret = wcd9xxx_cfg_slim_sch_rx(tabla,
 					tabla_p->dai[j].ch_num,
 					tabla_p->dai[j].ch_tot,
-					tabla_p->dai[j].rate,
-					tabla_p->dai[j].bit_width);
+					tabla_p->dai[j].rate);
 		}
 		break;
 	case SND_SOC_DAPM_POST_PMD:
@@ -4772,11 +4673,7 @@ static int tabla_codec_enable_slimrx(struct snd_soc_dapm_widget *w,
 				break;
 			}
 		}
-
-		if(j >= ARRAY_SIZE(tabla_dai))
-			break;
-
-		if (!tabla_p->dai[j].ch_act && tabla_p->dai[j].ch_tot > 0) {
+		if (!tabla_p->dai[j].ch_act) {
 			ret = wcd9xxx_close_slim_sch_rx(tabla,
 						tabla_p->dai[j].ch_num,
 						tabla_p->dai[j].ch_tot);
@@ -4799,7 +4696,6 @@ static int tabla_codec_enable_slimrx(struct snd_soc_dapm_widget *w,
 			if ((tabla != NULL) &&
 			    (tabla->dev != NULL) &&
 			    (tabla->dev->parent != NULL)) {
-				pr_info("%s: PM_Voting:false\n", __func__);
 				pm_runtime_mark_last_busy(tabla->dev->parent);
 				pm_runtime_put(tabla->dev->parent);
 			}
@@ -4826,7 +4722,6 @@ static int tabla_codec_enable_slimtx(struct snd_soc_dapm_widget *w,
 		if (event == SND_SOC_DAPM_POST_PMD && (tabla != NULL) &&
 		    (tabla->dev != NULL) &&
 		    (tabla->dev->parent != NULL)) {
-			pr_info("%s: PM_Voting:false\n", __func__);
 			pm_runtime_mark_last_busy(tabla->dev->parent);
 			pm_runtime_put(tabla->dev->parent);
 		}
@@ -4848,8 +4743,6 @@ static int tabla_codec_enable_slimtx(struct snd_soc_dapm_widget *w,
 				break;
 			}
 		}
-		if(j >= ARRAY_SIZE(tabla_dai))
-			break;
 		if (tabla_p->dai[j].ch_act == tabla_p->dai[j].ch_tot) {
 			ret = tabla_codec_enable_chmask(tabla_p,
 							SND_SOC_DAPM_POST_PMU,
@@ -4872,9 +4765,7 @@ static int tabla_codec_enable_slimtx(struct snd_soc_dapm_widget *w,
 				break;
 			}
 		}
-		if(j >= ARRAY_SIZE(tabla_dai))
-			break;
-		if (!tabla_p->dai[j].ch_act && tabla_p->dai[j].ch_tot > 0) {
+		if (!tabla_p->dai[j].ch_act) {
 			ret = wcd9xxx_close_slim_sch_tx(tabla,
 						tabla_p->dai[j].ch_num,
 						tabla_p->dai[j].ch_tot);
@@ -4897,7 +4788,6 @@ static int tabla_codec_enable_slimtx(struct snd_soc_dapm_widget *w,
 			if ((tabla != NULL) &&
 			    (tabla->dev != NULL) &&
 			    (tabla->dev->parent != NULL)) {
-				pr_info("%s: PM_Voting:false\n", __func__);
 				pm_runtime_mark_last_busy(tabla->dev->parent);
 				pm_runtime_put(tabla->dev->parent);
 			}
@@ -6079,9 +5969,6 @@ static bool tabla_mbhc_fw_validate(const struct firmware *fw)
 	u32 cfg_offset;
 	struct tabla_mbhc_imped_detect_cfg *imped_cfg;
 	struct tabla_mbhc_btn_detect_cfg *btn_cfg;
-
-	if (!fw)
-		return false;
 
 	if (fw->size < TABLA_MBHC_CAL_MIN_SIZE)
 		return false;
@@ -7785,6 +7672,10 @@ static const struct tabla_reg_mask_val tabla_codec_reg_init_val[] = {
 	{TABLA_A_CDC_CONN_TX_SB_B8_CTL, 0x60, 0x40},
 	{TABLA_A_CDC_CONN_TX_SB_B9_CTL, 0x60, 0x40},
 	{TABLA_A_CDC_CONN_TX_SB_B10_CTL, 0x60, 0x40},
+
+	
+	{TABLA_A_CDC_CONN_RX_SB_B1_CTL, 0xFF, 0xAA},
+	{TABLA_A_CDC_CONN_RX_SB_B2_CTL, 0xFF, 0xAA},
 
 	
 	{TABLA_A_CDC_TX1_MUX_CTL, 0x8, 0x0},

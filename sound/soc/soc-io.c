@@ -65,14 +65,6 @@ static unsigned int hw_read(struct snd_soc_codec *codec, unsigned int reg)
 	return val;
 }
 
-/* Primitive bulk write support for soc-cache.  The data pointed to by
- * `data' needs to already be in the form the hardware expects.  Any
- * data written through this function will not go through the cache as
- * it only handles writing to volatile or out of bounds registers.
- *
- * This is currently only supported for devices using the regmap API
- * wrappers.
- */
 static int snd_soc_hw_bulk_write_raw(struct snd_soc_codec *codec,
 				     unsigned int reg,
 				     const void *data, size_t len)
