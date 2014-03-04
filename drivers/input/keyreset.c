@@ -52,8 +52,7 @@ static void deferred_restart(struct work_struct *dummy)
 		pr_info("keyreset::%s combination key can't support modem & wcnss restart at the same time because shared SMSM_RESET !!!\n", __func__);
 	} else if (kernel_flag & KERNEL_FLAG_ENABLE_SSR_MODEM) {
 		pr_info("keyreset::%s to trigger modem restart\n", __func__);
-		smsm_change_state_ssr(SMSM_APPS_STATE, SMSM_APPS_SEND_MODEM_FATAL, 0, KERNEL_FLAG_ENABLE_SSR_MODEM);
-		smsm_change_state_ssr(SMSM_APPS_STATE, 0, SMSM_APPS_SEND_MODEM_FATAL, KERNEL_FLAG_ENABLE_SSR_MODEM);
+		smsm_change_state_ssr(SMSM_APPS_STATE, 0, SMSM_RESET, KERNEL_FLAG_ENABLE_SSR_MODEM);
 	} else if (kernel_flag & KERNEL_FLAG_ENABLE_SSR_WCNSS) {
 		pr_info("keyreset::%s to trigger wcnss restart\n", __func__);
 		smsm_change_state_ssr(SMSM_APPS_STATE, 0, SMSM_RESET, KERNEL_FLAG_ENABLE_SSR_WCNSS);
