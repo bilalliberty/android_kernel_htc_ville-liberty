@@ -26,7 +26,6 @@
 #include <linux/fs_struct.h>
 #include <linux/posix_acl.h>
 #include <asm/uaccess.h>
-#include <trace/events/mmcio.h>
 
 #include "internal.h"
 #include "mount.h"
@@ -1221,13 +1220,6 @@ static int link_path_walk(const char *name, struct nameidata *nd)
 			if (err)
 				return err;
 		}
-
-		if (unlikely(nd->inode->i_sb != nd->path.dentry->d_sb)) {
-			pr_info("%s(%s): fail to lookup (%s)\n", __func__, current->comm, name);
-			err = -ENOENT;
-			break;
-		}
-
 		if (can_lookup(nd->inode))
 			continue;
 		err = -ENOTDIR; 
@@ -2327,7 +2319,6 @@ int vfs_unlink(struct inode *dir, struct dentry *dentry)
 	if (!dir->i_op->unlink)
 		return -EPERM;
 
-	trace_vfs_unlink(dentry, dentry->d_inode->i_size);
 	mutex_lock(&dentry->d_inode->i_mutex);
 	if (d_mountpoint(dentry))
 		error = -EBUSY;
@@ -2340,7 +2331,6 @@ int vfs_unlink(struct inode *dir, struct dentry *dentry)
 		}
 	}
 	mutex_unlock(&dentry->d_inode->i_mutex);
-	trace_vfs_unlink_done(dentry);
 
 	
 	if (!error && !(dentry->d_flags & DCACHE_NFSFS_RENAMED)) {
