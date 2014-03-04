@@ -868,13 +868,13 @@ int thermal_zone_bind_cooling_device(struct thermal_zone_device *tz,
 	if (result)
 		goto free_mem;
 
-	snprintf(dev->name, sizeof(dev->name), "cdev%d", dev->id);
+	sprintf(dev->name, "cdev%d", dev->id);
 	result =
 	    sysfs_create_link(&tz->device.kobj, &cdev->device.kobj, dev->name);
 	if (result)
 		goto release_idr;
 
-	snprintf(dev->attr_name, sizeof(dev->attr_name), "cdev%d_trip_point", dev->id);
+	sprintf(dev->attr_name, "cdev%d_trip_point", dev->id);
 	sysfs_attr_init(&dev->attr.attr);
 	dev->attr.attr.name = dev->attr_name;
 	dev->attr.attr.mode = 0444;

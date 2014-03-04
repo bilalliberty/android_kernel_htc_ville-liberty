@@ -35,7 +35,6 @@
 	} while (0)
 
 static bool flag_enable_bms_chg_log;
-#define BATT_LOG_BUF_LEN (256)
 
 #define CCADC_ANA_PARAM		0x240
 #define CCADC_DIG_PARAM		0x241
@@ -89,7 +88,6 @@ struct pm8xxx_ccadc_chip {
 };
 
 static struct pm8xxx_ccadc_chip *the_chip;
-static char batt_log_buf[BATT_LOG_BUF_LEN];
 
 #ifdef DEBUG
 static s64 microvolt_to_ccadc_reading(struct pm8xxx_ccadc_chip *chip, s64 cc)
@@ -476,9 +474,6 @@ static irqreturn_t pm8921_bms_ccadc_eoc_handler(int irq, void *data)
 	struct pm8xxx_ccadc_chip *chip = data;
 	int rc;
 
-	if (!the_chip)
-		goto out;
-
 	pr_debug("irq = %d triggered\n", irq);
 	data_msb = chip->ccadc_offset >> 8;
 	data_lsb = chip->ccadc_offset;
@@ -487,7 +482,6 @@ static irqreturn_t pm8921_bms_ccadc_eoc_handler(int irq, void *data)
 						data_msb, data_lsb, 0);
 	disable_irq_nosync(chip->eoc_irq);
 
-out:
 	return IRQ_HANDLED;
 }
 
@@ -611,34 +605,24 @@ DEFINE_SIMPLE_ATTRIBUTE(calc_fops, get_calc, NULL, "%lld\n");
 void dump_all(void)
 {
 	u64 val;
-	unsigned int len =0;
-
-	memset(batt_log_buf, 0, sizeof(BATT_LOG_BUF_LEN));
-
 	get_reg((void *)CCADC_ANA_PARAM, &val);
-	len += scnprintf(batt_log_buf + len, BATT_LOG_BUF_LEN - len, "ANA_PARAM=0x%02llx,", val);
+	pr_info("CCADC_ANA_PARAM = 0x%02llx\n", val);
 	get_reg((void *)CCADC_DIG_PARAM, &val);
-	len += scnprintf(batt_log_buf + len, BATT_LOG_BUF_LEN - len, "DIG_PARAM=0x%02llx,", val);
+	pr_info("CCADC_DIG_PARAM = 0x%02llx\n", val);
 	get_reg((void *)CCADC_RSV, &val);
-	len += scnprintf(batt_log_buf + len, BATT_LOG_BUF_LEN - len, "RSV=0x%02llx,", val);
+	pr_info("CCADC_RSV = 0x%02llx\n", val);
 	get_reg((void *)CCADC_DATA0, &val);
-	len += scnprintf(batt_log_buf + len, BATT_LOG_BUF_LEN - len, "DATA0=0x%02llx,", val);
+	pr_info("CCADC_DATA0 = 0x%02llx\n", val);
 	get_reg((void *)CCADC_DATA1, &val);
-	len += scnprintf(batt_log_buf + len, BATT_LOG_BUF_LEN - len, "DATA1=0x%02llx,", val);
+	pr_info("CCADC_DATA1 = 0x%02llx\n", val);
 	get_reg((void *)CCADC_OFFSET_TRIM1, &val);
-	len += scnprintf(batt_log_buf + len, BATT_LOG_BUF_LEN - len, "OFFSET_TRIM1=0x%02llx,", val);
+	pr_info("CCADC_OFFSET_TRIM1 = 0x%02llx\n", val);
 	get_reg((void *)CCADC_OFFSET_TRIM0, &val);
-	len += scnprintf(batt_log_buf + len, BATT_LOG_BUF_LEN - len, "OFFSET_TRIM0=0x%02llx,", val);
+	pr_info("CCADC_OFFSET_TRIM0 = 0x%02llx\n", val);
 	get_reg((void *)CCADC_FULLSCALE_TRIM1, &val);
-	len += scnprintf(batt_log_buf + len, BATT_LOG_BUF_LEN - len, "FULLSCALE_TRIM1=0x%02llx,", val);
+	pr_info("CCADC_FULLSCALE_TRIM1 = 0x%02llx\n", val);
 	get_reg((void *)CCADC_FULLSCALE_TRIM0, &val);
-	len += scnprintf(batt_log_buf + len, BATT_LOG_BUF_LEN - len, "FULLSCALE_TRIM0=0x%02llx", val);
-
-	
-	if(BATT_LOG_BUF_LEN - len <= 1)
-		pr_info("batt log length maybe out of buffer range!!!");
-
-	pr_info("%s\n", batt_log_buf);
+	pr_info("CCADC_FULLSCALE_TRIM0 = 0x%02llx\n", val);
 }
 
 inline int pm8xxx_ccadc_dump_all(void)
@@ -762,11 +746,11 @@ static int __devinit pm8xxx_ccadc_probe(struct platform_device *pdev)
 		pr_err("failed to request %d irq rc= %d\n", chip->eoc_irq, rc);
 		goto free_chip;
 	}
-
 	disable_irq_nosync(chip->eoc_irq);
 
 	platform_set_drvdata(pdev, chip);
 	the_chip = chip;
+
 	INIT_DELAYED_WORK(&chip->calib_ccadc_work, calibrate_ccadc_work);
 	schedule_delayed_work(&chip->calib_ccadc_work, 0);
 
