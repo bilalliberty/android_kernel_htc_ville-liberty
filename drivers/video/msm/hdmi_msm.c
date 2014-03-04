@@ -593,7 +593,7 @@ void adjust_driving_strength(void)
 #ifdef CONFIG_FB_MSM_HDMI_MHL_SII9234
 	int i = 0;
 	if(hdmi_msm_state->pd->driving_params){
-		for (i = 0; i < hdmi_msm_state->pd->dirving_params_count; i++) {
+		for (i = 0; i < hdmi_msm_state->pd->driving_params_count; i++) {
 			if(external_common_state->video_resolution == hdmi_msm_state->pd->driving_params[i].format)
 			{
 				change_driving_strength(hdmi_msm_state->pd->driving_params[i].reg_a3,
