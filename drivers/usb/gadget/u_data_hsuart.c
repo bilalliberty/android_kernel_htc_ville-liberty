@@ -841,15 +841,11 @@ void ghsuart_data_disconnect(void *gptr, int port_num)
 	ghsuart_data_free_buffers(port);
 
 	
-	if (port->in) {
+	if (port->in)
 		usb_ep_disable(port->in);
-		port->in->driver_data = NULL;
-	}
 
-	if (port->out) {
+	if (port->out)
 		usb_ep_disable(port->out);
-		port->out->driver_data = NULL;
-	}
 
 	atomic_set(&port->connected, 0);
 
@@ -1064,7 +1060,7 @@ static int ghsuart_data_debugfs_init(void)
 {
 	struct dentry	 *ghsuart_data_dfile;
 
-	ghsuart_data_dent = debugfs_create_dir("ghsuart_data_xport", 0);
+	ghsuart_data_dent = debugfs_create_dir("ghsic_data_xport", 0);
 	if (!ghsuart_data_dent || IS_ERR(ghsuart_data_dent))
 		return -ENODEV;
 

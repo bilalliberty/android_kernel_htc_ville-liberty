@@ -12,7 +12,7 @@
  *
  */
 
-#if defined(CONFIG_DIAGFWD_BRIDGE_CODE)
+#if defined(CONFIG_DIAG_BRIDGE_CODE)
 #include <mach/diag_bridge.h>
 int diagfwd_connect_bridge(int process_cable);
 int diagfwd_write_complete_hsic(struct diag_request *diag_write_ptr);
@@ -25,13 +25,7 @@ static struct diag_context *legacyctxt;
 struct diag_context _mdm_context;
 static struct usb_diag_ch *mdmch;
 static  struct diag_context *mdmctxt;
-
-struct diag_context _qsc_context;
-static struct usb_diag_ch *qscch;
-static  struct diag_context *qscctxt;
-
 int htc_usb_enable_function(char *name, int ebl);
-static struct switch_dev sw_htc_usb_diag;
 
 #if DIAG_XPST
 struct device diag_device;
@@ -302,7 +296,7 @@ int checkcmd_modem_epst(unsigned char *buf)
 		return CHECK_MODEM_ALIVE;
 	}
 	if (*buf == EPST_PREFIX)
-#if defined(CONFIG_DIAGFWD_BRIDGE_CODE)
+#if defined(CONFIG_DIAG_BRIDGE_CODE)
 		return DM9KONLY;
 #else
 		return DM7KONLY;
@@ -365,10 +359,10 @@ int modem_to_userspace(void *buf, int r, int type, int is9k)
 	else
 		print_hex_dump(KERN_DEBUG, "DM Read Packet Data"
 				" from 7k radio (first 16 Bytes): ", DUMP_PREFIX_ADDRESS, 16, 1, req->buf, 16, 1);
-#if defined(CONFIG_DIAGFWD_BRIDGE_CODE)
+#if defined(CONFIG_DIAG_BRIDGE_CODE)
 	diagfwd_write_complete_hsic(NULL);
 	if (driver->hsic_ch)
-		queue_work(diag_bridge[HSIC].wq, &driver->diag_read_hsic_work);
+		queue_work(driver->diag_bridge_wq, &driver->diag_read_hsic_work);
 #endif
 	
 	req->actual = r;
@@ -377,15 +371,7 @@ int modem_to_userspace(void *buf, int r, int type, int is9k)
 	return 1;
 }
 
-static int check_if_htc_diag_resp(struct diag_request *diag_write_ptr)
-{
-	unsigned char *buf = (diag_write_ptr) ? diag_write_ptr->buf : NULL;
 
-	if (unlikely(htc_write_diag_req && buf == (void *)htc_write_diag_req->buf))
-		return 1;
-	else
-		return 0;
-}
 
 static long htc_diag_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
@@ -407,12 +393,9 @@ static long htc_diag_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 		if (copy_from_user(&tmp_value, argp, sizeof(int)))
 			return -EFAULT;
 		DIAG_INFO("diag: enable %d\n", tmp_value);
-		switch_set_state(&sw_htc_usb_diag, !!tmp_value);
 #if defined(CONFIG_MACH_VIGOR) || defined(CONFIG_ARCH_APQ8064)
 		htc_usb_enable_function(DIAG_MDM, tmp_value);
 #endif
-		
-		htc_usb_enable_function("acm", 0);
 		htc_usb_enable_function(DIAG_LEGACY, tmp_value);
 
 		if (tmp_value) {
@@ -759,7 +742,7 @@ static int check_modem_type(void)
 {
 #if defined(CONFIG_DIAG_SDIO_PIPE)
 	return XPST_SDIO;
-#elif defined(CONFIG_DIAGFWD_BRIDGE_CODE)
+#elif defined(CONFIG_DIAG_BRIDGE_CODE)
 	return XPST_HSIC;
 #else
 	return XPST_SMD;
@@ -786,7 +769,7 @@ static int check_modem_task_ready(int channel)
 		}
 		smd_write(driver->ch, phone_status, 4);
 		break;
-#if defined(CONFIG_DIAGFWD_BRIDGE_CODE)
+#if defined(CONFIG_DIAG_BRIDGE_CODE)
 	case XPST_HSIC:
 		if (!driver->hsic_device_enabled) {
 			DIAG_INFO("%s:modem status=hsic not ready\n", __func__);
@@ -811,10 +794,10 @@ static int check_modem_task_ready(int channel)
 	ret = wait_event_interruptible_timeout(driver->wait_q, radio_initialized != 0, 4 * HZ);
 	DIAG_INFO("%s:modem status=%d %s\n", __func__, radio_initialized, (ret == 0)?"(timeout)":"");
 
-#if defined(CONFIG_DIAGFWD_BRIDGE_CODE)
+#if defined(CONFIG_DIAG_BRIDGE_CODE)
 	diagfwd_write_complete_hsic(NULL);
 	if (driver->hsic_ch)
-		queue_work(diag_bridge[HSIC].wq, &driver->diag_read_hsic_work);
+		queue_work(driver->diag_bridge_wq, &driver->diag_read_hsic_work);
 #endif
 	return radio_initialized;
 }
@@ -964,7 +947,7 @@ static int diag2arm9_open(struct inode *ip, struct file *fp)
 	ctxt->read_arm9_req = 0;
 	ctxt->diag2arm9_opened = true;
 
-#if defined(CONFIG_DIAGFWD_BRIDGE_CODE)
+#if defined(CONFIG_DIAG_BRIDGE_CODE)
 	diagfwd_connect_bridge(0);
 #else
 	diag_smd_enable(driver->ch, "diag2arm9_open", SMD_FUNC_OPEN_DIAG);
@@ -1030,7 +1013,7 @@ static ssize_t diag2arm9_write(struct file *fp, const char __user *buf,
 			r = -EFAULT;
 			break;
 		}
-#if defined(CONFIG_DIAGFWD_BRIDGE_CODE)
+#if defined(CONFIG_DIAG_BRIDGE_CODE)
 		if (driver->hsic_ch == 0) {
 			DIAG_INFO("%s: driver->hsic_ch == NULL", __func__);
 			r = -EFAULT;
@@ -1121,7 +1104,7 @@ static ssize_t diag2arm9_write(struct file *fp, const char __user *buf,
 			}
 
 #endif
-#if defined(CONFIG_DIAGFWD_BRIDGE_CODE)
+#if defined(CONFIG_DIAG_BRIDGE_CODE)
 			driver->in_busy_hsic_write = 1;
 			driver->in_busy_hsic_read_on_device = 0;
 			ret = diag_bridge_write(ctxt->DM_buf, writed);
@@ -1130,7 +1113,7 @@ static ssize_t diag2arm9_write(struct file *fp, const char __user *buf,
 				if ((-ESHUTDOWN) != ret)
 					driver->in_busy_hsic_write = 0;
 			}
-			queue_work(diag_bridge[HSIC].wq, &driver->diag_read_hsic_work);
+			queue_work(driver->diag_bridge_wq, &driver->diag_read_hsic_work);
 #endif
 			break;
 		case DM7K9KDIFF:

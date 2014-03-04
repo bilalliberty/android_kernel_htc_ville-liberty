@@ -25,15 +25,6 @@
 #include "rndis.h"
 
 
-static unsigned int rndis_dl_max_pkt_per_xfer = 3;
-module_param(rndis_dl_max_pkt_per_xfer, uint, S_IRUGO | S_IWUSR);
-MODULE_PARM_DESC(rndis_dl_max_pkt_per_xfer,
-	"Maximum packets per transfer for DL aggregation");
-
-static unsigned int rndis_ul_max_pkt_per_xfer = 3;
-module_param(rndis_ul_max_pkt_per_xfer, uint, S_IRUGO | S_IWUSR);
-MODULE_PARM_DESC(rndis_ul_max_pkt_per_xfer,
-	"Maximum packets per transfer for UL aggregation");
 
 struct f_rndis {
 	struct gether			port;
@@ -46,6 +37,8 @@ struct f_rndis {
 	struct usb_ep			*notify;
 	struct usb_request		*notify_req;
 	atomic_t			notify_count;
+
+	atomic_t			online;
 };
 
 static inline struct f_rndis *func_to_rndis(struct usb_function *f)
@@ -360,13 +353,8 @@ static void rndis_response_available(void *_rndis)
 static void rndis_response_complete(struct usb_ep *ep, struct usb_request *req)
 {
 	struct f_rndis			*rndis = req->context;
-	struct usb_composite_dev	*cdev;
+	struct usb_composite_dev	*cdev = rndis->port.func.config->cdev;
 	int				status = req->status;
-
-	if (!rndis->port.func.config || !rndis->port.func.config->cdev)
-		return;
-	else
-		cdev = rndis->port.func.config->cdev;
 
 	switch (status) {
 	case -ECONNRESET:
@@ -397,35 +385,24 @@ static void rndis_response_complete(struct usb_ep *ep, struct usb_request *req)
 static void rndis_command_complete(struct usb_ep *ep, struct usb_request *req)
 {
 	struct f_rndis			*rndis = req->context;
-	struct usb_composite_dev	*cdev;
+	struct usb_composite_dev	*cdev = rndis->port.func.config->cdev;
 	int				status;
-	rndis_init_msg_type		*buf;
 
-	if (!rndis->port.func.config || !rndis->port.func.config->cdev)
+	if (req->status < 0) {
+		pr_err("%s: staus error: %d\n", __func__, req->status);
 		return;
-	else
-		cdev = rndis->port.func.config->cdev;
+	}
+
+	if (!atomic_read(&rndis->online)) {
+		pr_warning("%s: usb rndis is not online\n", __func__);
+		return;
+	}
 
 	
 	status = rndis_msg_parser(rndis->config, (u8 *) req->buf);
 	if (status < 0)
 		ERROR(cdev, "RNDIS command error %d, %d/%d\n",
 			status, req->actual, req->length);
-
-	buf = (rndis_init_msg_type *)req->buf;
-
-	if (buf->MessageType == REMOTE_NDIS_INITIALIZE_MSG) {
-		if (buf->MaxTransferSize > 2048)
-			rndis->port.multi_pkt_xfer = 1;
-		else
-			rndis->port.multi_pkt_xfer = 0;
-		DBG(cdev, "%s: MaxTransferSize: %d : Multi_pkt_txr: %s\n",
-				__func__, buf->MaxTransferSize,
-				rndis->port.multi_pkt_xfer ? "enabled" :
-							    "disabled");
-		if (rndis_dl_max_pkt_per_xfer <= 1)
-			rndis->port.multi_pkt_xfer = 0;
-	}
 }
 
 static int
@@ -438,6 +415,12 @@ rndis_setup(struct usb_function *f, const struct usb_ctrlrequest *ctrl)
 	u16			w_index = le16_to_cpu(ctrl->wIndex);
 	u16			w_value = le16_to_cpu(ctrl->wValue);
 	u16			w_length = le16_to_cpu(ctrl->wLength);
+
+	if (!atomic_read(&rndis->online)) {
+		pr_warning("%s: usb rndis is not online\n", __func__);
+		return -ENOTCONN;
+	}
+
 
 	switch ((ctrl->bRequestType << 8) | ctrl->bRequest) {
 
@@ -552,22 +535,18 @@ static int rndis_set_alt(struct usb_function *f, unsigned intf, unsigned alt)
 	} else
 		goto fail;
 
+	atomic_set(&rndis->online, 1);
 	return 0;
 fail:
 	return -EINVAL;
-}
-
-static void rndis_suspend(struct usb_function *f)
-{
-	struct f_rndis *rndis = func_to_rndis(f);
-	pr_info("rndis suspend\n");
-	gether_disconnect(&rndis->port);
 }
 
 static void rndis_disable(struct usb_function *f)
 {
 	struct f_rndis		*rndis = func_to_rndis(f);
 	struct usb_composite_dev *cdev = f->config->cdev;
+
+	atomic_set(&rndis->online, 0);
 
 	if (!rndis->notify->driver_data)
 		return;
@@ -710,7 +689,6 @@ rndis_bind(struct usb_configuration *c, struct usb_function *f)
 
 	rndis_set_param_medium(rndis->config, NDIS_MEDIUM_802_3, 0);
 	rndis_set_host_mac(rndis->config, rndis->ethaddr);
-	rndis_set_max_pkt_xfer(rndis->config, rndis_ul_max_pkt_per_xfer);
 
 	if (rndis->manufacturer && rndis->vendorID &&
 			rndis_set_param_vendor(rndis->config, rndis->vendorID,
@@ -758,6 +736,7 @@ rndis_unbind(struct usb_configuration *c, struct usb_function *f)
 
 	rndis_deregister(rndis->config);
 	rndis_exit();
+	rndis_string_defs[0].id = 0;
 
 	if (gadget_is_superspeed(c->cdev->gadget))
 		usb_free_descriptors(f->ss_descriptors);
@@ -840,8 +819,6 @@ rndis_bind_config_vendor(struct usb_configuration *c, u8 ethaddr[ETH_ALEN],
 	rndis->port.header_len = sizeof(struct rndis_packet_msg_type);
 	rndis->port.wrap = rndis_add_header;
 	rndis->port.unwrap = rndis_rm_hdr;
-	rndis->port.ul_max_pkts_per_xfer = rndis_ul_max_pkt_per_xfer;
-	rndis->port.dl_max_pkts_per_xfer = rndis_dl_max_pkt_per_xfer;
 
 	rndis->port.func.name = "rndis";
 	rndis->port.func.strings = rndis_strings;
@@ -850,7 +827,6 @@ rndis_bind_config_vendor(struct usb_configuration *c, u8 ethaddr[ETH_ALEN],
 	rndis->port.func.unbind = rndis_unbind;
 	rndis->port.func.set_alt = rndis_set_alt;
 	rndis->port.func.setup = rndis_setup;
-	rndis->port.func.suspend = rndis_suspend;
 	rndis->port.func.disable = rndis_disable;
 
 	status = usb_add_function(c, &rndis->port.func);

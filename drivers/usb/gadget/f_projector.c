@@ -72,16 +72,13 @@ unsigned short *test_frame;
 
 #define BITSPIXEL 16
 #define PROJECTOR_FUNCTION_NAME "projector"
-#define FRAME_INTERVAL_TIME 200
 
 #define htc_mode_info(fmt, args...) \
 	printk(KERN_INFO "[htc_mode] " pr_fmt(fmt), ## args)
 
-static int keypad_code[] = {KEY_WAKEUP, 0, 0, 0, KEY_HOME, 0, KEY_BACK};
+static int keypad_code[] = {KEY_WAKEUP, 0, 0, 0, KEY_HOME, KEY_MENU, KEY_BACK};
 static const char cand_shortname[] = "htc_cand";
 static const char htcmode_shortname[] = "htcmode";
-static ktime_t start;
-extern int htc_battery_set_max_input_current(int target_ma);
 
 struct projector_dev {
 	struct usb_function function;
@@ -123,7 +120,6 @@ struct projector_dev {
 
 	struct workqueue_struct *wq_display;
 	struct work_struct send_fb_work;
-	struct work_struct send_fb_work_legacy;
 	int start_send_fb;
 
 	
@@ -428,7 +424,7 @@ static void projector_report_key_event(struct projector_dev *dev,
 	input_sync(kdev);
 }
 
-extern char *get_fb_addr(void);
+
 
 static void send_fb(struct projector_dev *dev)
 {
@@ -440,8 +436,7 @@ static void send_fb(struct projector_dev *dev)
 
 	if (projector_dev->htcmode_proto->debug_mode)
 		frame = (char *)test_frame;
-	else
-		frame = get_fb_addr();
+	
 
 	if (frame == NULL) {
 		printk(KERN_WARNING "send_fb: frame == NULL\n");
@@ -453,18 +448,14 @@ static void send_fb(struct projector_dev *dev)
 			xfer = count > TXN_MAX? TXN_MAX : count;
 			req->length = xfer;
 			memcpy(req->buf, frame, xfer);
-
-			count -= xfer;
-			frame += xfer;
-
-			if (count <= 0)
-				req->zero = 1;
 			if (usb_ep_queue(dev->ep_in, req, GFP_ATOMIC) < 0) {
 				proj_req_put(dev, &dev->tx_idle, req);
 				printk(KERN_WARNING "%s: failed to queue req %p\n",
 					__func__, req);
 				break;
 			}
+			count -= xfer;
+			frame += xfer;
 		} else {
 			printk(KERN_ERR "send_fb: no req to send\n");
 			break;
@@ -530,34 +521,22 @@ static void send_fb2(struct projector_dev *dev)
 {
 	struct usb_request *req;
 	int xfer;
-	static char *frame,*pre_frame;
+	char *frame = NULL;
 	int count = dev->htcmode_proto->server_info.width *
 				dev->htcmode_proto->server_info.height * (BITSPIXEL / 8);
-	ktime_t diff;
 
 	if (projector_dev->htcmode_proto->debug_mode)
 		frame = (char *)test_frame;
-	else
-		frame = get_fb_addr();
+
 
 	if (frame == NULL)
 		return;
-
-	if (frame == pre_frame) {
-		diff = ktime_sub(ktime_get(), start);
-		if (ktime_to_ms(diff) < FRAME_INTERVAL_TIME)
-			return;
-		else
-			start = ktime_get();
-	}
 
 	if (dev->htcmode_proto->version >= 0x0006 &&
 		send_hsml_header(dev) < 0) {
 			printk(KERN_WARNING "%s: failed to send hsml header\n", __func__);
 			return;
 	}
-
-	pre_frame = frame;
 
 	while (count > 0 && dev->online) {
 
@@ -596,26 +575,9 @@ static void send_fb2(struct projector_dev *dev)
 void send_fb_do_work(struct work_struct *work)
 {
 	struct projector_dev *dev = projector_dev;
-	start = ktime_get();
 	while (dev->start_send_fb) {
 		send_fb2(dev);
 		msleep(1);
-	}
-}
-
-void send_fb_do_work_legacy(struct work_struct *work)
-{
-	struct projector_dev *dev = projector_dev;
-
-	if (!dev->online)
-		return;
-
-	send_fb(dev);
-	dev->frame_count++;
-	
-	if (dev->frame_count == 30 * 30) {
-		projector_send_Key_event(dev, 0);
-		dev->frame_count = 0;
 	}
 }
 
@@ -725,7 +687,6 @@ static void projector_get_msmfb(struct projector_dev *dev)
 	dev->bitsPixel = BITSPIXEL;
 	dev->width = fb_info.xres;
 	dev->height = fb_info.yres;
-	dev->fbaddr = get_fb_addr();
 	dev->framesize = dev->width * dev->height * (dev->bitsPixel / 8);
 	printk(KERN_INFO "projector: width %d, height %d framesize %d, %p\n",
 		   fb_info.xres, fb_info.yres, dev->framesize, dev->fbaddr);
@@ -751,21 +712,7 @@ static void projector_enable_fb_work(struct projector_dev *dev, int enabled)
 	schedule_work(&dev->htcmode_notifier_work);
 }
 
-static int projector_handle_common_msg(struct projector_dev *dev, struct usb_request *req)
-{
-	unsigned char *data = req->buf;
-	int handled = 1;
 
-	if (!strncmp("startfb", data, 7)) {
-		projector_enable_fb_work(dev, 1);
-	} else if (!strncmp("endfb", data, 5)) {
-		projector_enable_fb_work(dev, 0);
-	} else {
-		handled = 0;
-	}
-
-	return handled;
-}
 static int projector_handle_htcmode_msg(struct projector_dev *dev, struct usb_request *req)
 {
 	unsigned char *data = req->buf;
@@ -790,6 +737,10 @@ static int projector_handle_htcmode_msg(struct projector_dev *dev, struct usb_re
 	} else if (dev->htcmode_proto->version >= 0x0006 &&
 			data[0] == HSML_KEY_EVENT_ID) {
 		projector_report_key_event(dev, (struct key_event *)data);
+	} else if (!strncmp("startfb", data, 7)) {
+		projector_enable_fb_work(dev, 1);
+	} else if (!strncmp("endfb", data, 5)) {
+		projector_enable_fb_work(dev, 0);
 	} else if (!strncmp("startcand", data, 9)) {
 	} else if (!strncmp("endcand", data, 7)) {
 		atomic_set(&dev->cand_online, 0);
@@ -797,7 +748,7 @@ static int projector_handle_htcmode_msg(struct projector_dev *dev, struct usb_re
 
 		schedule_work(&dev->notifier_work);
 	} else {
-		handled = projector_handle_common_msg(dev, req);
+		handled = 0;
 	}
 
 	return handled;
@@ -828,9 +779,6 @@ static void projector_complete_out(struct usb_ep *ep, struct usb_request *req)
 	if (dev->is_htcmode)
 		handled = projector_handle_htcmode_msg(dev, req);
 
-	if (!handled)
-		handled = projector_handle_common_msg(dev, req);
-
 	if (!handled) {
 		
 		mouse_data[0] = *((int *)(req->buf));
@@ -852,7 +800,13 @@ static void projector_complete_out(struct usb_ep *ep, struct usb_request *req)
 			    atomic_read(&htc_mode_status));
 			schedule_work(&dev->htcmode_notifier_work);
 		} else if (*data == ' ') {
-			queue_work(dev->wq_display, &dev->send_fb_work_legacy);
+			send_fb(dev);
+			dev->frame_count++;
+			
+			if (dev->frame_count == 30 * 30) {
+				projector_send_Key_event(dev, 0);
+				dev->frame_count = 0;
+			}
 		} else if (mouse_data[0] > 0) {
 			 if (mouse_data[0] < 4) {
 				for (i = 0; i < 3; i++)
@@ -1091,12 +1045,14 @@ static int projector_keypad_init(struct projector_dev *dev)
 	set_bit(KEY_VOLUMEDOWN, kdev->keybit);
 	set_bit(KEY_VOLUMEUP, kdev->keybit);
 	set_bit(KEY_HOME, kdev->keybit);
+	set_bit(KEY_MENU, kdev->keybit);
 	set_bit(KEY_BACK, kdev->keybit);
 	set_bit(KEY_SEARCH, kdev->keybit);
 	set_bit(KEY_ENTER, kdev->keybit);
 	set_bit(KEY_DELETE, kdev->keybit);
 	set_bit(KEY_ZOOMIN, kdev->keybit);
 	set_bit(KEY_ZOOMOUT, kdev->keybit);
+	set_bit(KEY_APP_SWITCH, kdev->keybit);
 
 	set_bit(KEY_WAKEUP, kdev->keybit);
 
@@ -1321,7 +1277,6 @@ static int projector_bind_config(struct usb_configuration *c)
 	workqueue_set_max_active(dev->wq_display, 1);
 
 	INIT_WORK(&dev->send_fb_work, send_fb_do_work);
-	INIT_WORK(&dev->send_fb_work_legacy, send_fb_do_work_legacy);
 
 	return 0;
 
@@ -1415,15 +1370,15 @@ static void projector_complete_req(struct usb_ep *ep, struct usb_request *req)
 	}
 
 	switch (dev->htcmode_proto->request) {
-	case HSML_06_REQ_SEND_CLIENT_INFO:
+	case HSML_REQ_SEND_CLIENT_INFO:
 		dst = (char *)&dev->htcmode_proto->client_info;
 		memcpy(dst + 1, req->buf, length);
 		break;
 
-	case HSML_06_REQ_SEND_EXTENDED_CLIENT_INFO:
+	case HSML_REQ_SEND_EXTENDED_CLIENT_INFO:
 		break;
 
-	case HSML_06_REQ_SET_CLIENT_AUTH:
+	case HSML_REQ_SET_CLIENT_AUTH:
 		dst = (char *)&dev->htcmode_proto->client_sig;
 		memcpy(dst, req->buf, length);
 		dev->htcmode_proto->notify_authenticator = 1;
@@ -1451,7 +1406,8 @@ static int projector_ctrlrequest(struct usb_composite_dev *cdev,
 		printk(KERN_INFO "%s: request(req=0x%02x, wValue=%d, "
 						 "wIndex=%d, wLength=%d)\n", __func__,
 						 ctrl->bRequest, ctrl->wValue, ctrl->wIndex, ctrl->wLength);
-		if (ctrl->bRequest == HTC_MODE_CONTROL_REQ) {
+		switch (ctrl->bRequest) {
+		case HTC_MODE_CONTROL_REQ:
 			if (check_htc_mode_status() == NOT_ON_AUTOBOT) {
 				if (projector_dev) {
 					projector_dev->htcmode_proto->vendor = w_index;
@@ -1468,84 +1424,78 @@ static int projector_ctrlrequest(struct usb_composite_dev *cdev,
 				} else {
 					printk(KERN_ERR "%s: projector_dev is NULL!!", __func__);
 				}
-				value = 0;
 			}
-		}
-		else if (check_htc_mode_status() != NOT_ON_AUTOBOT) {
-			switch (ctrl->bRequest) {
-			case HSML_06_REQ_GET_SERVER_VERSION:
-				ptr[0] = (char)(HSML_PROTOCOL_VERSION >> 8);
-				ptr[1] = (char)(HSML_PROTOCOL_VERSION & 0xFF);
-				value = sizeof(u16);
-				break;
+			value = 0;
+			break;
 
-			case HSML_06_REQ_GET_SERVER_INFO:
-				projector_size = get_projection_size(projector_dev, &projector_dev->htcmode_proto->client_info);
+		case HSML_REQ_GET_SERVER_VERSION:
+			ptr[0] = (char)(HSML_PROTOCOL_VERSION >> 8);
+			ptr[1] = (char)(HSML_PROTOCOL_VERSION & 0xFF);
+			value = sizeof(u16);
+			break;
 
-				projector_dev->htcmode_proto->server_info.mesg_id = SERVER_INFO_MESGID;
-				projector_dev->htcmode_proto->server_info.width = projector_size.w;
-				projector_dev->htcmode_proto->server_info.height = projector_size.h;
-				projector_dev->htcmode_proto->server_info.pixel_format = PIXEL_FORMAT_RGB565;
-				projector_dev->htcmode_proto->server_info.ctrl_conf = CTRL_CONF_TOUCH_EVENT_SUPPORTED |
-											  CTRL_CONF_NUM_SIMULTANEOUS_TOUCH;
+		case HSML_REQ_GET_SERVER_INFO:
+			projector_size = get_projection_size(projector_dev, &projector_dev->htcmode_proto->client_info);
+
+			projector_dev->htcmode_proto->server_info.mesg_id = SERVER_INFO_MESGID;
+			projector_dev->htcmode_proto->server_info.width = projector_size.w;
+			projector_dev->htcmode_proto->server_info.height = projector_size.h;
+			projector_dev->htcmode_proto->server_info.pixel_format = PIXEL_FORMAT_RGB565;
+			projector_dev->htcmode_proto->server_info.ctrl_conf = CTRL_CONF_TOUCH_EVENT_SUPPORTED |
+										  CTRL_CONF_NUM_SIMULTANEOUS_TOUCH;
+			value = w_length;
+			ptr = (char *)&projector_dev->htcmode_proto->server_info;
+			memcpy(cdev->req->buf, ptr + 1, w_length);
+			break;
+
+		case HSML_REQ_GET_FB:
+			if (!w_value)
+				projector_enable_fb_work(projector_dev, 1);
+			else
+				send_fb(projector_dev);
+			value = 0;
+			break;
+
+		case HSML_REQ_STOP:
+			projector_enable_fb_work(projector_dev, 0);
+			value = 0;
+			break;
+
+		case HSML_REQ_GET_SERVER_NONCE:
+			if (w_length == HSML_SERVER_NONCE_SIZE) {
+				for (i = 0; i < w_length / sizeof(int); i++)
+					*((int *)(projector_dev->htcmode_proto->nonce + sizeof(int) * i)) = get_random_int();
+				memcpy(cdev->req->buf, projector_dev->htcmode_proto->nonce, w_length);
+			} else
+				printk(KERN_ERR "%s: The request size for server nonce is incorrect. (w_length=%d)",
+					__func__, w_length);
+			value = w_length;
+			projector_dev->htcmode_proto->auth_result = 0;
+			projector_dev->htcmode_proto->auth_in_progress = 1;
+			break;
+
+		case HSML_REQ_SET_CLIENT_AUTH:
+		case HSML_REQ_SEND_CLIENT_INFO:
+		case HSML_REQ_SEND_EXTENDED_CLIENT_INFO:
+			cdev->gadget->ep0->driver_data = projector_dev;
+			cdev->req->complete = projector_complete_req;
+			projector_dev->htcmode_proto->request = ctrl->bRequest;
+			value = w_length;
+			break;
+
+		case HSML_REQ_GET_SERVER_AUTH:
+			if (!projector_dev->htcmode_proto->auth_in_progress) {
+				memcpy(cdev->req->buf,
+						projector_dev->htcmode_proto->server_sig, w_length);
 				value = w_length;
-				ptr = (char *)&projector_dev->htcmode_proto->server_info;
-				memcpy(cdev->req->buf, ptr + 1, w_length);
-				break;
-
-			case HSML_06_REQ_GET_FB:
-				if (!w_value)
-					projector_enable_fb_work(projector_dev, 1);
-				else
-					send_fb(projector_dev);
-				value = 0;
-				break;
-
-			case HSML_06_REQ_STOP:
-				projector_enable_fb_work(projector_dev, 0);
-				value = 0;
-				break;
-
-			case HSML_06_REQ_GET_SERVER_NONCE:
-				if (w_length == HSML_SERVER_NONCE_SIZE) {
-					for (i = 0; i < w_length / sizeof(int); i++)
-						*((int *)(projector_dev->htcmode_proto->nonce + sizeof(int) * i)) = get_random_int();
-					memcpy(cdev->req->buf, projector_dev->htcmode_proto->nonce, w_length);
-				} else
-					printk(KERN_ERR "%s: The request size for server nonce is incorrect. (w_length=%d)",
-						__func__, w_length);
-				value = w_length;
-				projector_dev->htcmode_proto->auth_result = 0;
-				projector_dev->htcmode_proto->auth_in_progress = 1;
-				break;
-
-			case HSML_06_REQ_SET_CLIENT_AUTH:
-			case HSML_06_REQ_SEND_CLIENT_INFO:
-			case HSML_06_REQ_SEND_EXTENDED_CLIENT_INFO:
-				cdev->gadget->ep0->driver_data = projector_dev;
-				cdev->req->complete = projector_complete_req;
-				projector_dev->htcmode_proto->request = ctrl->bRequest;
-				value = w_length;
-				break;
-
-			case HSML_06_REQ_GET_SERVER_AUTH:
-				if (!projector_dev->htcmode_proto->auth_in_progress) {
-					memcpy(cdev->req->buf,
-							projector_dev->htcmode_proto->server_sig, w_length);
-					value = w_length;
-				}
-				break;
-			case HSML_06_REQ_SET_MAX_CHARGING_CURRENT:
-				htc_battery_set_max_input_current((int)w_value);
-				value = 0;
-				break;
-
-			default:
-				printk(KERN_INFO "%s: unrecognized request(req=0x%02x, wValue=%d, "
-								 "wIndex=%d, wLength=%d)\n", __func__,
-						ctrl->bRequest, ctrl->wValue, ctrl->wIndex, ctrl->wLength);
-				break;
 			}
+			break;
+
+		default:
+			printk(KERN_INFO "%s: unrecognized request(req=0x%02x, wValue=%d, "
+							 "wIndex=%d, wLength=%d)\n", __func__,
+					ctrl->bRequest, ctrl->wValue, ctrl->wIndex, ctrl->wLength);
+			break;
 		}
 	}
 

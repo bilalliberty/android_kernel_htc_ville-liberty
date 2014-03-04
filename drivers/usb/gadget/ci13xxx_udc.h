@@ -47,7 +47,7 @@ struct ci13xxx_td {
 #define TD_CURR_OFFSET        (0x0FFFUL <<  0)
 #define TD_FRAME_NUM          (0x07FFUL <<  0)
 #define TD_RESERVED_MASK      (0x0FFFUL <<  0)
-};
+} __attribute__ ((packed));
 
 struct ci13xxx_qh {
 	
@@ -56,7 +56,6 @@ struct ci13xxx_qh {
 #define QH_MAX_PKT            (0x07FFUL << 16)
 #define QH_ZLT                BIT(29)
 #define QH_MULT               (0x0003UL << 30)
-#define QH_MULT_SHIFT         11
 	
 	u32 curr;
 	

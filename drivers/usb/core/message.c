@@ -1233,7 +1233,7 @@ free_interfaces:
 	for (i = 0; i < nintf; ++i) {
 		struct usb_interface *intf = cp->interface[i];
 
-		dev_info(&dev->dev,
+		dev_dbg(&dev->dev,
 			"adding %s (config #%d, interface %d)\n",
 			dev_name(&intf->dev), configuration,
 			intf->cur_altsetting->desc.bInterfaceNumber);

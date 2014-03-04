@@ -20,8 +20,6 @@
 
 
 #include <linux/usb/otg.h>
-#include <linux/usb.h>
-#include <mach/board_htc.h>
 
 #define	PORT_WAKE_BITS	(PORT_WKOC_E|PORT_WKDISC_E|PORT_WKCONN_E)
 
@@ -284,7 +282,6 @@ static int ehci_bus_suspend (struct usb_hcd *hcd)
 	ehci_readl(ehci, &ehci->regs->intr_enable);
 
 	ehci->next_statechange = jiffies + msecs_to_jiffies(10);
-	ehci->last_susp_resume = ktime_get();
 	spin_unlock_irq (&ehci->lock);
 
 	del_timer_sync(&ehci->watchdog);
@@ -742,7 +739,7 @@ static int ehci_hub_control (
 	u32 __iomem	*status_reg = &ehci->regs->port_status[
 				(wIndex & 0xff) - 1];
 	u32 __iomem	*hostpc_reg = NULL;
-	u32             temp, temp1, status;
+	u32		temp, temp1, status, cmd = 0;
 	unsigned long	flags;
 	int		retval = 0;
 	unsigned	selector;
@@ -773,8 +770,6 @@ static int ehci_hub_control (
 		switch (wValue) {
 		case USB_PORT_FEAT_ENABLE:
 			ehci_writel(ehci, temp & ~PORT_PE, status_reg);
-			pr_info("PE bit getting cleared\n");
-			WARN_ON(1);
 			break;
 		case USB_PORT_FEAT_C_ENABLE:
 			ehci_writel(ehci, (temp & ~PORT_RWC_BITS) | PORT_PEC,
@@ -858,8 +853,6 @@ static int ehci_hub_control (
 		status = 0;
 		temp = ehci_readl(ehci, status_reg);
 
-		if (get_radio_flag() & RADIO_FLAG_USB_UPLOAD)
-			pr_info("%s temp = 0x%08x\n",__func__,temp);
 		
 		if (temp & PORT_CSC)
 			status |= USB_PORT_STAT_C_CONNECTION << 16;
@@ -1085,13 +1078,30 @@ static int ehci_hub_control (
 						+ msecs_to_jiffies (50);
 			}
 
-			if (ehci->reset_sof_bug && (temp & PORT_RESET) &&
-					hcd->driver->reset_sof_bug_handler) {
+			if (ehci->reset_sof_bug && (temp & PORT_RESET)) {
+				cmd = ehci_readl(ehci, &ehci->regs->command);
+				cmd &= ~CMD_RUN;
+				ehci_writel(ehci, cmd, &ehci->regs->command);
+				if (handshake(ehci, &ehci->regs->status,
+						STS_HALT, STS_HALT, 16 * 125))
+					ehci_info(ehci,
+						"controller halt failed\n");
+			}
+			ehci_writel(ehci, temp, status_reg);
+			if (ehci->reset_sof_bug && (temp & PORT_RESET)
+				&& hcd->driver->enable_ulpi_control) {
+				hcd->driver->enable_ulpi_control(hcd,
+						PORT_RESET);
 				spin_unlock_irqrestore(&ehci->lock, flags);
-				hcd->driver->reset_sof_bug_handler(hcd, temp);
+				usleep_range(50000, 55000);
+				if (handshake(ehci, status_reg,
+						PORT_RESET, 0, 10 * 1000))
+					ehci_info(ehci,
+						"failed to clear reset\n");
 				spin_lock_irqsave(&ehci->lock, flags);
-			} else {
-				ehci_writel(ehci, temp, status_reg);
+				hcd->driver->disable_ulpi_control(hcd);
+				cmd |= CMD_RUN;
+				ehci_writel(ehci, cmd, &ehci->regs->command);
 			}
 			break;
 

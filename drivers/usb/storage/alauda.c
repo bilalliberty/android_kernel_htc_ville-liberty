@@ -533,7 +533,7 @@ static int alauda_read_map(struct us_data *us, unsigned int zone)
 		continue;
 
 	nonz:
-		/* unwritten PBAs have control field FF^16 */
+		
 		for (j = 0; j < 16; j++)
 			if (data[j] != 0xff)
 				goto nonff;
@@ -857,14 +857,10 @@ static int alauda_read_data(struct us_data *us, unsigned long address,
 		
 		pba = MEDIA_INFO(us).lba_to_pba[zone][lba_offset];
 
-		if (pba == UNDEF) {	/* this lba was never written */
+		if (pba == UNDEF) {	
 			US_DEBUGP("Read %d zero pages (LBA %d) page %d\n",
 				  pages, lba, page);
 
-			/* This is not really an error. It just means
-			   that the block has never been written.
-			   Instead of returning USB_STOR_TRANSPORT_ERROR
-			   it is better to return all zero data. */
 
 			memset(buffer, 0, len);
 		} else {

@@ -394,10 +394,6 @@ int usb_stor_bulk_transfer_sg(struct us_data* us, unsigned int pipe,
 EXPORT_SYMBOL_GPL(usb_stor_bulk_transfer_sg);
 
 
-/* There are so many devices that report the capacity incorrectly,
- * this routine was written to counteract some of the resulting
- * problems.
- */
 static void last_sector_hacks(struct us_data *us, struct scsi_cmnd *srb)
 {
 	struct gendisk *disk;

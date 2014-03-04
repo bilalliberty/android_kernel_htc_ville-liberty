@@ -318,8 +318,7 @@ requeue_req:
 	}
 
 	
-	ret = wait_event_interruptible(dev->read_wq, dev->rx_done ||
-				atomic_read(&dev->error));
+	ret = wait_event_interruptible(dev->read_wq, dev->rx_done);
 	if (ret < 0) {
 		if (ret != -ERESTARTSYS)
 		atomic_set(&dev->error, 1);
@@ -341,9 +340,6 @@ requeue_req:
 		r = -EIO;
 
 done:
-	if (atomic_read(&dev->error))
-		wake_up(&dev->write_wq);
-
 	adb_unlock(&dev->read_excl);
 	pr_debug("adb_read returning %d\n", r);
 	return r;
@@ -411,9 +407,6 @@ static ssize_t adb_write(struct file *fp, const char __user *buf,
 
 	if (req)
 		adb_req_put(dev, &dev->tx_idle, req);
-
-	if (atomic_read(&dev->error))
-		wake_up(&dev->read_wq);
 
 	adb_unlock(&dev->write_excl);
 	pr_debug("adb_write returning %d\n", r);
@@ -646,7 +639,6 @@ static int adb_bind_config(struct usb_configuration *c)
 	dev->function.unbind = adb_function_unbind;
 	dev->function.set_alt = adb_function_set_alt;
 	dev->function.disable = adb_function_disable;
-	dev->function.suspend = adb_function_disable;
 
 	return usb_add_function(c, &dev->function);
 }

@@ -15,7 +15,6 @@
 #include <linux/dmapool.h>
 #include <linux/dma-mapping.h>
 #include <linux/init.h>
-#include <linux/ratelimit.h>
 #include <linux/interrupt.h>
 #include <linux/io.h>
 #include <linux/irq.h>
@@ -29,17 +28,15 @@
 #include <linux/usb/msm_hsusb.h>
 
 #include "ci13xxx_udc.h"
-#include <mach/htc_battery_common.h>
 
 
 
 #define DMA_ADDR_INVALID	(~(dma_addr_t)0)
-#define USB_MAX_TIMEOUT 	100 
 #define EP_PRIME_CHECK_DELAY   (jiffies + msecs_to_jiffies(1000))
 #define MAX_PRIME_CHECK_RETRY  3 
 
 static DEFINE_SPINLOCK(udc_lock);
-extern int USB_disabled;
+
 static const struct usb_endpoint_descriptor
 ctrl_endpt_out_desc = {
 	.bLength         = USB_DT_ENDPOINT_SIZE,
@@ -98,7 +95,6 @@ static struct {
 #define ABS_HCCPARAMS       (0x108UL)
 #define ABS_DCCPARAMS       (0x124UL)
 #define ABS_TESTMODE        (hw_bank.lpm ? 0x0FCUL : 0x138UL)
-#define CAP_GEN_CONFIG     (0x09CUL)
 #define CAP_USBCMD          (0x000UL)
 #define CAP_USBSTS          (0x004UL)
 #define CAP_USBINTR         (0x008UL)
@@ -119,8 +115,7 @@ static struct {
 #define REMOTE_WAKEUP_DELAY	msecs_to_jiffies(200)
 
 static unsigned hw_ep_max;
-static void dbg_usb_op_fail(u8 addr, const char *name,
-				const struct ci13xxx_ep *mep);
+
 static inline int hw_ep_bit(int num, int dir)
 {
 	return num + (dir ? 16 : 0);
@@ -212,22 +207,18 @@ static int hw_device_init(void __iomem *base)
 }
 static int hw_device_reset(struct ci13xxx *udc)
 {
-	int delay_count = 25; 
-
 	
 	hw_cwrite(CAP_ENDPTFLUSH, ~0, ~0);
 	hw_cwrite(CAP_USBCMD, USBCMD_RS, 0);
 
 	hw_cwrite(CAP_USBCMD, USBCMD_RST, USBCMD_RST);
-	while (delay_count--  && hw_cread(CAP_USBCMD, USBCMD_RST))
-		udelay(10);
-	if (delay_count < 0)
-		pr_err("USB controller reset failed\n");
+	while (hw_cread(CAP_USBCMD, USBCMD_RST))
+		udelay(10);             
+
 
 	if (udc->udc_driver->notify_event)
 		udc->udc_driver->notify_event(udc,
 			CI13XXX_CONTROLLER_RESET_EVENT);
-
 
 	if (udc->udc_driver->flags & CI13XXX_DISABLE_STREAMING)
 		hw_cwrite(CAP_USBMODE, USBMODE_SDIS, USBMODE_SDIS);
@@ -236,8 +227,6 @@ static int hw_device_reset(struct ci13xxx *udc)
 	hw_cwrite(CAP_USBMODE, USBMODE_CM, USBMODE_CM_IDLE);
 	hw_cwrite(CAP_USBMODE, USBMODE_CM, USBMODE_CM_DEVICE);
 	hw_cwrite(CAP_USBMODE, USBMODE_SLOM, USBMODE_SLOM);  
-
-	hw_awrite(CAP_GEN_CONFIG, (1<<6), (1<<6));
 
 	if (udc->udc_driver->flags & CI13XXX_ZERO_ITC)
 		hw_cwrite(CAP_USBCMD, USBCMD_ITC_MASK, USBCMD_ITC(0));
@@ -266,55 +255,43 @@ static int hw_device_state(u32 dma)
 	return 0;
 }
 
-static void debug_ept_flush_info(int ep_num, int dir)
-{
-	struct ci13xxx *udc = _udc;
-	struct ci13xxx_ep *mep;
-
-	if (dir)
-		mep = &udc->ci13xxx_ep[ep_num + hw_ep_max/2];
-	else
-		mep = &udc->ci13xxx_ep[ep_num];
-
-	pr_err_ratelimited("USB Registers\n");
-	pr_err_ratelimited("USBCMD:%x\n", hw_cread(CAP_USBCMD, ~0));
-	pr_err_ratelimited("USBSTS:%x\n", hw_cread(CAP_USBSTS, ~0));
-	pr_err_ratelimited("ENDPTLISTADDR:%x\n",
-			hw_cread(CAP_ENDPTLISTADDR, ~0));
-	pr_err_ratelimited("PORTSC:%x\n", hw_cread(CAP_PORTSC, ~0));
-	pr_err_ratelimited("USBMODE:%x\n", hw_cread(CAP_USBMODE, ~0));
-	pr_err_ratelimited("ENDPTSTAT:%x\n", hw_cread(CAP_ENDPTSTAT, ~0));
-
-	dbg_usb_op_fail(0xFF, "FLUSHF", mep);
-}
+#define FLUSH_WAIT_US	5
+#define FLUSH_TIMEOUT	(2 * (USEC_PER_SEC / FLUSH_WAIT_US))
 static int hw_ep_flush(int num, int dir)
 {
-	ktime_t start, diff;
+	uint32_t unflushed = 0;
+	uint32_t stat = 0;
+	int cnt = 0;
 	int n = hw_ep_bit(num, dir);
 
-	start = ktime_get();
-	do {
-		
+	while (cnt < FLUSH_TIMEOUT) {
 		hw_cwrite(CAP_ENDPTFLUSH, BIT(n), BIT(n));
-		while (hw_cread(CAP_ENDPTFLUSH, BIT(n))) {
-			cpu_relax();
-			diff = ktime_sub(ktime_get(), start);
-			if (ktime_to_ms(diff) > USB_MAX_TIMEOUT) {
-				printk_ratelimited(KERN_ERR
-					"%s: Failed to flush ep#%d %s\n",
-					__func__, num,
-					dir ? "IN" : "OUT");
-				debug_ept_flush_info(num, dir);
-				return 0;
+		while ((unflushed = hw_cread(CAP_ENDPTFLUSH, BIT(n))) &&
+		       cnt < FLUSH_TIMEOUT) {
+			cnt++;
+			udelay(FLUSH_WAIT_US);
 		}
-	}
-	} while (hw_cread(CAP_ENDPTSTAT, BIT(n)));
 
+		stat = hw_cread(CAP_ENDPTSTAT, BIT(n));
+		if (cnt >= FLUSH_TIMEOUT)
+			goto err;
+		if (!stat)
+			goto done;
+		cnt++;
+		udelay(FLUSH_WAIT_US);
+	}
+
+err:
+	USB_WARNING("%s: Could not complete flush! NOT GOOD! "
+		   "stat: %x unflushed: %x bits: %x\n", __func__,
+		   stat, unflushed, n);
+done:
 	return 0;
 }
 
 static int hw_ep_disable(int num, int dir)
 {
+	hw_ep_flush(num, dir);
 	hw_cwrite(CAP_ENDPTCTRL + num * sizeof(u32),
 		  dir ? ENDPTCTRL_TXE : ENDPTCTRL_RXE, 0);
 	return 0;
@@ -519,8 +496,6 @@ static int hw_usb_set_address(u8 value)
 
 static int hw_usb_reset(void)
 {
-	int delay_count = 10; 
-
 	hw_usb_set_address(0);
 
 	
@@ -533,10 +508,8 @@ static int hw_usb_reset(void)
 	hw_cwrite(CAP_ENDPTCOMPLETE,  0,  0);   
 
 	
-	while (delay_count-- && hw_cread(CAP_ENDPTPRIME, ~0))
-		udelay(10);
-	if (delay_count < 0)
-		pr_err("ENDPTPRIME is not cleared during bus reset\n");
+	while (hw_cread(CAP_ENDPTPRIME, ~0))
+		udelay(10);             
 
 	
 
@@ -726,26 +699,25 @@ static void dbg_setup(u8 addr, const struct usb_ctrlrequest *req)
 	}
 }
 
-static void dbg_usb_op_fail(u8 addr, const char *name,
-				const struct ci13xxx_ep *mep)
+static void dbg_prime_fail(u8 addr, const char *name,
+				const struct ci13xxx_ep *mEp)
 {
 	char msg[DBG_DATA_MSG];
 	struct ci13xxx_req *req;
 	struct list_head *ptr = NULL;
 
-	if (mep != NULL) {
+	if (mEp != NULL) {
 		scnprintf(msg, sizeof(msg),
-			"%s Fail EP%d%s QH:%08X",
-			name, mep->num,
-			mep->dir ? "IN" : "OUT", mep->qh.ptr->cap);
+			  "PRIME fail EP%d%s QH:%08X",
+			  mEp->num, mEp->dir ? "IN" : "OUT", mEp->qh.ptr->cap);
 		dbg_print(addr, name, 0, msg);
 		scnprintf(msg, sizeof(msg),
 				"cap:%08X %08X %08X\n",
-				mep->qh.ptr->curr, mep->qh.ptr->td.next,
-				mep->qh.ptr->td.token);
+				mEp->qh.ptr->curr, mEp->qh.ptr->td.next,
+				mEp->qh.ptr->td.token);
 		dbg_print(addr, "QHEAD", 0, msg);
 
-		list_for_each(ptr, &mep->qh.queue) {
+		list_for_each(ptr, &mEp->qh.queue) {
 			req = list_entry(ptr, struct ci13xxx_req, queue);
 			scnprintf(msg, sizeof(msg),
 					"%08X:%08X:%08X\n",
@@ -1342,60 +1314,54 @@ static inline u8 _usb_addr(struct ci13xxx_ep *ep)
 	return ((ep->dir == TX) ? USB_ENDPOINT_DIR_MASK : 0) | ep->num;
 }
 
-static void usb_chg_stop(struct work_struct *w)
-{
-	USB_INFO("disable charger\n");
-	htc_battery_pwrsrc_disable();
-}
-
 static void ep_prime_timer_func(unsigned long data)
 {
-	struct ci13xxx_ep *mep = (struct ci13xxx_ep *)data;
+	struct ci13xxx_ep *mEp = (struct ci13xxx_ep *)data;
 	struct ci13xxx_req *req;
 	struct list_head *ptr = NULL;
-	int n = hw_ep_bit(mep->num, mep->dir);
+	int n = hw_ep_bit(mEp->num, mEp->dir);
 	unsigned long flags;
 
 
-	spin_lock_irqsave(mep->lock, flags);
+	spin_lock_irqsave(mEp->lock, flags);
 	if (!hw_cread(CAP_ENDPTPRIME, BIT(n)))
 		goto out;
 
-	if (list_empty(&mep->qh.queue))
+	if (list_empty(&mEp->qh.queue))
 		goto out;
 
-	req = list_entry(mep->qh.queue.next, struct ci13xxx_req, queue);
+	req = list_entry(mEp->qh.queue.next, struct ci13xxx_req, queue);
 
 	mb();
 	if (!(TD_STATUS_ACTIVE & req->ptr->token))
 		goto out;
 
-	mep->prime_timer_count++;
-	if (mep->prime_timer_count == MAX_PRIME_CHECK_RETRY) {
-		mep->prime_timer_count = 0;
+	mEp->prime_timer_count++;
+	if (mEp->prime_timer_count == MAX_PRIME_CHECK_RETRY) {
+		mEp->prime_timer_count = 0;
 		pr_info("ep%d dir:%s QH:cap:%08x cur:%08x next:%08x tkn:%08x\n",
-				mep->num, mep->dir ? "IN" : "OUT",
-				mep->qh.ptr->cap, mep->qh.ptr->curr,
-				mep->qh.ptr->td.next, mep->qh.ptr->td.token);
-		list_for_each(ptr, &mep->qh.queue) {
+				mEp->num, mEp->dir ? "IN" : "OUT",
+				mEp->qh.ptr->cap, mEp->qh.ptr->curr,
+				mEp->qh.ptr->td.next, mEp->qh.ptr->td.token);
+		list_for_each(ptr, &mEp->qh.queue) {
 			req = list_entry(ptr, struct ci13xxx_req, queue);
 			pr_info("\treq:%08xnext:%08xtkn:%08xpage0:%08xsts:%d\n",
 					req->dma, req->ptr->next,
 					req->ptr->token, req->ptr->page[0],
 					req->req.status);
 		}
-		dbg_usb_op_fail(0xFF, "PRIMEF", mep);
-		mep->prime_fail_count++;
+		dbg_prime_fail(0xFF, "PRIMEF", mEp);
+		mEp->prime_fail_count++;
 	} else {
-		mod_timer(&mep->prime_timer, EP_PRIME_CHECK_DELAY);
+		mod_timer(&mEp->prime_timer, EP_PRIME_CHECK_DELAY);
 	}
 
-	spin_unlock_irqrestore(mep->lock, flags);
+	spin_unlock_irqrestore(mEp->lock, flags);
 	return;
 
 out:
-	mep->prime_timer_count = 0;
-	spin_unlock_irqrestore(mep->lock, flags);
+	mEp->prime_timer_count = 0;
+	spin_unlock_irqrestore(mEp->lock, flags);
 
 }
 
@@ -1489,7 +1455,6 @@ static int _hardware_enqueue(struct ci13xxx_ep *mEp, struct ci13xxx_req *mReq)
 		struct ci13xxx_req *mReqPrev;
 		int n = hw_ep_bit(mEp->num, mEp->dir);
 		int tmp_stat;
-		ktime_t start, diff;
 
 		mReqPrev = list_entry(mEp->qh.queue.prev,
 				struct ci13xxx_req, queue);
@@ -1500,21 +1465,14 @@ static int _hardware_enqueue(struct ci13xxx_ep *mEp, struct ci13xxx_req *mReq)
 		wmb();
 		if (hw_cread(CAP_ENDPTPRIME, BIT(n)))
 			goto done;
-		start = ktime_get();
+		i = 0;
 		do {
 			hw_cwrite(CAP_USBCMD, USBCMD_ATDTW, USBCMD_ATDTW);
 			tmp_stat = hw_cread(CAP_ENDPTSTAT, BIT(n));
-			diff = ktime_sub(ktime_get(), start);
-			
-			if (ktime_to_ms(diff) > USB_MAX_TIMEOUT) {
-				if (hw_cread(CAP_USBCMD, USBCMD_ATDTW))
-					break;
-				printk_ratelimited(KERN_ERR
-				"%s:queue failed ep#%d %s\n",
-				 __func__, mEp->num, mEp->dir ? "IN" : "OUT");
-				return -EAGAIN;
-			}
-		} while (!hw_cread(CAP_USBCMD, USBCMD_ATDTW));
+			mb();
+		} while (!hw_cread(CAP_USBCMD, USBCMD_ATDTW) && (i++ < 100));
+		if (i == 100)
+			USBH_ERR("%s: Write USBCMD_ATDTW failed\n", __func__);
 		hw_cwrite(CAP_USBCMD, USBCMD_ATDTW, 0);
 		if (tmp_stat)
 			goto done;
@@ -1965,8 +1923,7 @@ __acquires(mEp->lock)
 dequeue:
 		retval = _hardware_dequeue(mEp, mReq);
 		if (retval < 0) {
-			if (retval == -EBUSY && req_dequeue &&
-				(mEp->dir == 0 || mEp->num == 0)) {
+			if (retval == -EBUSY && req_dequeue && mEp->dir == 0) {
 				req_dequeue = 0;
 				udc->dTD_update_fail_count++;
 				mEp->dTD_update_fail_count++;
@@ -2002,7 +1959,6 @@ __acquires(udc->lock)
 {
 	unsigned i;
 	u8 tmode = 0;
-	struct usb_info *ui = the_usb_info;
 
 	trace("%p", udc);
 
@@ -2159,8 +2115,6 @@ __acquires(udc->lock)
 					case TEST_K:
 					case TEST_SE0_NAK:
 					case TEST_PACKET:
-						if (!udc->test_mode)
-							schedule_delayed_work(&ui->chg_stop, 0);
 					case TEST_FORCE_EN:
 						udc->test_mode = tmode;
 						err = isr_setup_status_phase(
@@ -2214,7 +2168,6 @@ static int ep_enable(struct usb_ep *ep,
 	struct ci13xxx_ep *mEp = container_of(ep, struct ci13xxx_ep, ep);
 	int retval = 0;
 	unsigned long flags;
-	unsigned mult = 0;
 
 	trace("%p, %p", ep, desc);
 
@@ -2240,15 +2193,12 @@ static int ep_enable(struct usb_ep *ep,
 
 	mEp->qh.ptr->cap = 0;
 
-	if (mEp->type == USB_ENDPOINT_XFER_CONTROL) {
+	if (mEp->type == USB_ENDPOINT_XFER_CONTROL)
 		mEp->qh.ptr->cap |=  QH_IOS;
-	} else if (mEp->type == USB_ENDPOINT_XFER_ISOC) {
+	else if (mEp->type == USB_ENDPOINT_XFER_ISOC)
 		mEp->qh.ptr->cap &= ~QH_MULT;
-		mult = ((mEp->ep.maxpacket >> QH_MULT_SHIFT) + 1) & 0x03;
-		mEp->qh.ptr->cap |= (mult << ffs_nr(QH_MULT));
-	} else {
+	else
 		mEp->qh.ptr->cap |= QH_ZLT;
-	}
 
 	mEp->qh.ptr->cap |=
 		(mEp->ep.maxpacket << ffs_nr(QH_MAX_PKT)) & QH_MAX_PKT;
@@ -2297,7 +2247,6 @@ static int ep_disable(struct usb_ep *ep)
 
 	mEp->desc = NULL;
 	mEp->ep.desc = NULL;
-	mEp->ep.maxpacket = USHRT_MAX;
 
 	spin_unlock_irqrestore(mEp->lock, flags);
 	return retval;
@@ -2568,17 +2517,6 @@ static void ep_fifo_flush(struct usb_ep *ep)
 	spin_unlock_irqrestore(mEp->lock, flags);
 }
 
-static void ep_nuke(struct usb_ep *ep)
-{
-	struct ci13xxx_ep  *mEp  = container_of(ep,  struct ci13xxx_ep, ep);
-	struct ci13xxx *udc = _udc;
-	unsigned long flags;
-
-	spin_lock_irqsave(udc->lock, flags);
-	_ep_nuke(mEp);
-	spin_unlock_irqrestore(udc->lock, flags);
-}
-
 static const struct usb_ep_ops usb_ep_ops = {
 	.enable	       = ep_enable,
 	.disable       = ep_disable,
@@ -2589,7 +2527,6 @@ static const struct usb_ep_ops usb_ep_ops = {
 	.set_halt      = ep_set_halt,
 	.set_wedge     = ep_set_wedge,
 	.fifo_flush    = ep_fifo_flush,
-	.nuke          = ep_nuke,
 };
 
 static int ci13xxx_vbus_session(struct usb_gadget *_gadget, int is_active)
@@ -2751,8 +2688,7 @@ static int ci13xxx_start(struct usb_gadget_driver *driver,
 
 			mEp->ep.name      = mEp->name;
 			mEp->ep.ops       = &usb_ep_ops;
-			mEp->ep.maxpacket =
-				k ? USHRT_MAX : CTRL_PAYLOAD_MAX;
+			mEp->ep.maxpacket = CTRL_PAYLOAD_MAX;
 
 			INIT_LIST_HEAD(&mEp->qh.queue);
 			spin_unlock_irqrestore(udc->lock, flags);
@@ -2918,17 +2854,7 @@ static irqreturn_t udc_irq(void)
 		if (USBi_URI & intr) {
 			USB_INFO("reset\n");
 			isr_statistics.uri++;
-
-			if (board_mfg_mode() == 5 || USB_disabled) {
-				USB_INFO("Offmode / QuickBootMode\n");
-				spin_unlock(udc->lock);
-				if (udc->transceiver)
-					udc->transceiver->notify_usb_disabled();
-				spin_lock(udc->lock);
-				isr_reset_handler(udc);
-			} else {
-				isr_reset_handler(udc);
-			}
+			isr_reset_handler(udc);
 
 			if (udc->transceiver)
 				udc->transceiver->notify_usb_attached();

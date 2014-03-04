@@ -538,13 +538,6 @@ static int usbat_hp8200e_rw_block_test(struct us_data *us,
 	return USB_STOR_TRANSPORT_FAILED;
 }
 
-/*
- * Write to multiple registers:
- * Allows us to write specific data to any registers. The data to be written
- * gets packed in this sequence: reg0, data0, reg1, data1, ..., regN, dataN
- * which gets sent through bulk out.
- * Not designed for large transfers of data!
- */
 static int usbat_multiple_write(struct us_data *us,
 				unsigned char *registers,
 				unsigned char *data_out,

@@ -20,9 +20,6 @@
 
 
 
-#ifdef CONFIG_ARCH_APQ8064
-void dbg_log_event(struct urb *urb, char * event, unsigned extra);
-#endif
 
 static int
 qtd_fill(struct ehci_hcd *ehci, struct ehci_qtd *qtd, dma_addr_t buf,
@@ -484,9 +481,7 @@ qh_urb_transaction (
 		return NULL;
 	list_add_tail (&qtd->qtd_list, head);
 	qtd->urb = urb;
-#ifdef CONFIG_ARCH_APQ8064
-	dbg_log_event(NULL,"Alloc QTD: ",(int) qtd);
-#endif
+
 	token = QTD_STS_ACTIVE;
 	token |= (EHCI_TUNE_CERR << 10);
 	
@@ -506,9 +501,6 @@ qh_urb_transaction (
 		if (unlikely (!qtd))
 			goto cleanup;
 		qtd->urb = urb;
-#ifdef CONFIG_ARCH_APQ8064
-		dbg_log_event(NULL,"alloc SETUP QTD ",(int) qtd);
-#endif
 		qtd_prev->hw_next = QTD_NEXT(ehci, qtd->qtd_dma);
 		list_add_tail (&qtd->qtd_list, head);
 
@@ -564,9 +556,6 @@ qh_urb_transaction (
 		if (unlikely (!qtd))
 			goto cleanup;
 		qtd->urb = urb;
-#ifdef CONFIG_ARCH_APQ8064
-		dbg_log_event(NULL, "Alloc another QTD: ",(int) qtd);
-#endif
 		qtd_prev->hw_next = QTD_NEXT(ehci, qtd->qtd_dma);
 		list_add_tail (&qtd->qtd_list, head);
 	}
@@ -796,9 +785,7 @@ static void qh_link_async (struct ehci_hcd *ehci, struct ehci_qh *qh)
 
 	head->qh_next.qh = qh;
 	head->hw->hw_next = dma;
-#ifdef CONFIG_ARCH_APQ8064
-	dbg_log_event(NULL, "linking QH to current QH, cur QH =  ",(int) head);
-#endif
+
 	qh_get(qh);
 	qh->xacterrs = 0;
 	qh->qh_state = QH_STATE_LINKED;
@@ -820,9 +807,6 @@ static struct ehci_qh *qh_append_tds (
 	qh = (struct ehci_qh *) *ptr;
 	if (unlikely (qh == NULL)) {
 		
-#ifdef CONFIG_ARCH_APQ8064
-		dbg_log_event(NULL, "QH does not exisit", 0);
-#endif
 		qh = qh_make (ehci, urb, GFP_ATOMIC);
 		*ptr = qh;
 	}
@@ -848,9 +832,6 @@ static struct ehci_qh *qh_append_tds (
 			dma_addr_t		dma;
 			__hc32			token;
 
-#ifdef CONFIG_ARCH_APQ8064
-			dbg_log_event(NULL,"adding QTD to QH " ,(int) qh);
-#endif
 			token = qtd->hw_token;
 			qtd->hw_token = HALT_BIT(ehci);
 
@@ -1088,17 +1069,11 @@ static void start_unlink_async (struct ehci_hcd *ehci, struct ehci_qh *qh)
 	qh->qh_state = QH_STATE_UNLINK;
 	ehci->reclaim = qh = qh_get (qh);
 
-#ifdef CONFIG_ARCH_APQ8064
-	dbg_log_event(NULL, "unlink QH ",(int) qh);
-#endif
 	prev = ehci->async;
 	while (prev->qh_next.qh != qh)
 		prev = prev->qh_next.qh;
 
 	prev->hw->hw_next = qh->hw->hw_next;
-#ifdef CONFIG_ARCH_APQ8064
-	dbg_log_event(NULL, "unlink QH prev->hw->hw_next",(int) prev->hw->hw_next);
-#endif
 	prev->qh_next = qh->qh_next;
 	if (ehci->qh_scan_next == qh)
 		ehci->qh_scan_next = qh->qh_next.qh;

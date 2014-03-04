@@ -130,12 +130,6 @@ static void gs_buf_clear(struct gs_buf *gb)
 	
 }
 
-/*
- * gs_buf_data_avail
- *
- * Return the number of bytes of data written into the circular
- * buffer.
- */
 static unsigned gs_buf_data_avail(struct gs_buf *gb)
 {
 	return (gb->buf_size + gb->buf_put - gb->buf_get) % gb->buf_size;
@@ -305,8 +299,6 @@ static int gs_start_tx(struct gs_port *port)
 		}
 		prev_len = req->length;
 		port->nbytes_from_tty += req->length;
-
-		port->write_started++;
 
 	}
 
@@ -574,6 +566,9 @@ static int gs_open(struct tty_struct *tty, struct file *file)
 	struct gs_port	*port;
 	int		status;
 
+	if (port_num < 0 || port_num >= n_ports)
+		return -ENXIO;
+
 	do {
 		mutex_lock(&ports[port_num].lock);
 		port = ports[port_num].port;
@@ -640,6 +635,8 @@ static int gs_open(struct tty_struct *tty, struct file *file)
 
 	port->open_count = 1;
 	port->openclose = false;
+
+	tty->low_latency = 1;
 
 	
 	if (port->port_usb) {
@@ -823,9 +820,6 @@ static void gs_unthrottle(struct tty_struct *tty)
 	struct gs_port		*port = tty->driver_data;
 	unsigned long		flags;
 
-	if (!port)
-		return;
-
 	spin_lock_irqsave(&port->port_lock, flags);
 	if (port->port_usb) {
 		queue_work(gserial_wq, &port->push);
@@ -986,8 +980,6 @@ static ssize_t debug_read_status(struct file *file, char __user *ubuf,
 
 	tty = ui_dev->port_tty;
 	gser = ui_dev->port_usb;
-	if (ui_dev->port_usb == NULL)
-		return -ENODEV;
 
 	buf = kzalloc(sizeof(char) * BUF_SIZE, GFP_KERNEL);
 	if (!buf)
@@ -1139,6 +1131,7 @@ int gserial_setup(struct usb_gadget *g, unsigned count)
 	
 	status = tty_register_driver(gs_tty_driver);
 	if (status) {
+		put_tty_driver(gs_tty_driver);
 		pr_err("%s: cannot register, err %d\n",
 				__func__, status);
 		goto fail;
@@ -1219,27 +1212,6 @@ void gserial_cleanup(void)
 	pr_debug("%s: cleaned up ttyGS* support\n", __func__);
 }
 
-/**
- * gserial_connect - notify TTY I/O glue that USB link is active
- * @gser: the function, set up with endpoints and descriptors
- * @port_num: which port is active
- * Context: any (usually from irq)
- *
- * This is called activate endpoints and let the TTY layer know that
- * the connection is active ... not unlike "carrier detect".  It won't
- * necessarily start I/O queues; unless the TTY is held open by any
- * task, there would be no point.  However, the endpoints will be
- * activated so the USB host can perform I/O, subject to basic USB
- * hardware flow control.
- *
- * Caller needs to have set up the endpoints and USB function in @dev
- * before calling this, as well as the appropriate (speed-specific)
- * endpoint descriptors, and also have set up the TTY driver by calling
- * @gserial_setup().
- *
- * Returns negative errno or zero.
- * On success, ep->driver_data will be overwritten.
- */
 int gserial_connect(struct gserial *gser, u8 port_num)
 {
 	struct gs_port	*port;

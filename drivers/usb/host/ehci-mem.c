@@ -18,16 +18,6 @@
 
 
 
-/*
- * There's basically three types of memory:
- *	- data used only by the HCD ... kmalloc is fine
- *	- async and periodic schedules, shared by HC and HCD ... these
- *	  need to use dma_pool or dma_alloc_coherent
- *	- driver buffers, read/written by HC ... single shot DMA mapped
- *
- * There's also "register" data (e.g. PCI or SOC), which is memory mapped.
- * No memory seen by this driver is pageable.
- */
 
 
 

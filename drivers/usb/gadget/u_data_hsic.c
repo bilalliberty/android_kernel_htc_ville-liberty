@@ -227,8 +227,6 @@ static void ghsic_data_write_tohost(struct work_struct *w)
 		} else {
 			req->no_interrupt = 1;
 		}
-		
-		req->zero = 1;
 
 		list_del(&req->list);
 
@@ -728,15 +726,11 @@ void ghsic_data_disconnect(void *gptr, int port_num)
 	ghsic_data_free_buffers(port);
 
 	
-	if (port->in) {
+	if (port->in)
 		usb_ep_disable(port->in);
-		port->in->driver_data = NULL;
-	}
 
-	if (port->out) {
+	if (port->out)
 		usb_ep_disable(port->out);
-		port->out->driver_data = NULL;
-	}
 
 	atomic_set(&port->connected, 0);
 

@@ -19,7 +19,7 @@
 #include "gadget_chips.h"
 
 
-#define GSERIAL_NO_PORTS 8
+#define GSERIAL_NO_PORTS 5
 
 struct f_gser {
 	struct gserial			port;
@@ -327,6 +327,7 @@ static int gport_setup(struct usb_composite_dev *cdev)
 		ret = ghsic_ctrl_setup(no_hsic_sports, USB_GADGET_SERIAL);
 		if (ret < 0)
 			return ret;
+		return 0;
 	}
 	if (no_hsuart_sports) {
 		port_idx = ghsuart_data_setup(no_hsuart_sports,
@@ -341,6 +342,8 @@ static int gport_setup(struct usb_composite_dev *cdev)
 				port_idx++;
 			}
 		}
+
+		return 0;
 	}
 	return ret;
 }
@@ -882,8 +885,6 @@ gser_unbind(struct usb_configuration *c, struct usb_function *f)
 	usb_free_descriptors(f->descriptors);
 #ifdef CONFIG_MODEM_SUPPORT
 	gs_free_req(gser->notify, gser->notify_req);
-	if (gser->notify)
-		gser->notify->driver_data = NULL;
 #endif
 	kfree(func_to_gser(f));
 }

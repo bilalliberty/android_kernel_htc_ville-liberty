@@ -19,7 +19,6 @@
 #include <linux/gpio.h>
 
 #include <linux/usb/htc_info.h>
-static struct usb_info *the_usb_info;
 #include "ci13xxx_udc.c"
 
 #define MSM_USB_BASE	(udc->regs)
@@ -163,13 +162,8 @@ static int ci13xxx_msm_probe(struct platform_device *pdev)
 {
 	struct resource *res;
 	int ret;
-	struct usb_info *ui;
 
 	dev_dbg(&pdev->dev, "ci13xxx_msm_probe\n");
-	ui = kzalloc(sizeof(struct usb_info), GFP_KERNEL);
-	if (!ui)
-		return -ENOMEM;
-	the_usb_info = ui;
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	if (!res) {
@@ -211,7 +205,6 @@ static int ci13xxx_msm_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "request_irq failed\n");
 		goto gpio_uninstall;
 	}
-	INIT_DELAYED_WORK(&ui->chg_stop, usb_chg_stop);
 
 	pm_runtime_no_callbacks(&pdev->dev);
 	pm_runtime_enable(&pdev->dev);
