@@ -8,7 +8,6 @@ obj-y += audio_lpa.o
 obj-y += q6voice.o
 obj-y += snddev_hdmi.o
 obj-y += audio_mvs.o
-obj-$(CONFIG_ARCH_MSM8X60) += pcm_in_proxy.o
 obj-$(CONFIG_FB_MSM_HDMI_MSM_PANEL) += lpa_if_hdmi.o
 endif
 obj-$(CONFIG_MSM_QDSP6_APR) += apr.o apr_tal.o q6core.o dsp_debug.o
@@ -25,11 +24,3 @@ obj-$(CONFIG_MSM_QDSP6V2_CODECS) += audio_wma.o audio_wmapro.o audio_aac.o audio
 obj-$(CONFIG_MSM_QDSP6V2_CODECS) += rtac_v2.o q6audio_v2.o q6audio_v2_aio.o
 obj-$(CONFIG_MSM_QDSP6V2_CODECS) += audio_mp3.o audio_amrnb.o audio_amrwb.o audio_evrc.o audio_qcelp.o amrwb_in.o
 obj-$(CONFIG_MSM_ULTRASOUND) += ultrasound/
-
-#HTC_AUD_START
-ifdef CONFIG_ARCH_MSM8X60
-CFLAGS_audio_mp3.o := -DDEBUG
-CFLAGS_audio_aac.o := -DDEBUG
-CFLAGS_audio_utils_aio.o := -DDEBUG
-endif
-#HTC_AUD_END

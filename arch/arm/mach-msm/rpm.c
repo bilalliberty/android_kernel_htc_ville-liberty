@@ -308,7 +308,7 @@ static int msm_rpm_set_exclusive(int ctx,
 	msm_rpm_write(MSM_RPM_PAGE_CTRL,
 		target_ctrl(MSM_RPM_CTRL_REQ_CTX_0), ctx_mask);
 
-	/* Ensure RPM data is written before sending the interrupt */
+	
 	mb();
 	msm_rpm_send_req_interrupt();
 
@@ -382,7 +382,7 @@ static int msm_rpm_set_exclusive_noirq(int ctx,
 	msm_rpm_write(MSM_RPM_PAGE_CTRL,
 		target_ctrl(MSM_RPM_CTRL_REQ_CTX_0), ctx_mask);
 
-	/* Ensure RPM data is written before sending the interrupt */
+	
 	mb();
 	msm_rpm_send_req_interrupt();
 
@@ -794,7 +794,6 @@ int __init msm_rpm_init(struct msm_rpm_platform_data *data)
 	msm_rpm_sel_mask_size = msm_rpm_data.sel_last / 32 + 1;
 	BUG_ON(SEL_MASK_SIZE < msm_rpm_sel_mask_size);
 
-#ifndef CONFIG_ARCH_MSM8X60
 	if ((get_radio_flag() & KERNEL_FLAG_APPSBARK) && msm_rpm_stat_data)
 		msm_rpm_stat_data->rpm_debug_mode |= RPM_DEBUG_RAM_DUMP;
 
@@ -804,7 +803,7 @@ int __init msm_rpm_init(struct msm_rpm_platform_data *data)
 	
 	if ((get_kernel_flag() & KERNEL_FLAG_RPM_DISABLE_WATCHDOG) && msm_rpm_stat_data)
 		msm_rpm_stat_data->rpm_debug_mode |= RPM_DEBUG_DISABLE_WATCHDOG;
-#endif
+
 	fw_major = msm_rpm_read(MSM_RPM_PAGE_STATUS,
 				target_status(MSM_RPM_STATUS_ID_VERSION_MAJOR));
 	fw_minor = msm_rpm_read(MSM_RPM_PAGE_STATUS,
@@ -877,15 +876,6 @@ int __init msm_rpm_init(struct msm_rpm_platform_data *data)
 	return platform_driver_register(&msm_rpm_platform_driver);
 }
 
-#ifdef CONFIG_ARCH_MSM8X60
-void __init msm_rpm_lpm_init(uint32_t *lpm_setting, uint32_t num)
-{
-	uint32_t i = 0;
-	for (i = 0; i < num; i++)
-		msm_rpm_write(MSM_RPM_PAGE_STAT, RPM_LPM_PM8058 + i, lpm_setting[i]);
-}
-#endif
-
 void msm_rpm_dump_stat(void)
 {
 	int i = 0;
@@ -897,17 +887,10 @@ void msm_rpm_dump_stat(void)
 			msm_rpm_stat_data->stats[RPM_STAT_VDD_MIN_COUNT].value,
 			((uint64_t)msm_rpm_stat_data->stats[RPM_STAT_VDD_MIN_TIME].value * 1000) >> 15);
 		for (i = 0; i < RPM_MASTER_COUNT; i++) {
-#ifdef CONFIG_ARCH_MSM8X60
-			pr_info("sleep_info_m.%d - %llums, %llums, %d %d %d %d\n", i, ((uint64_t)msm_rpm_stat_data->wake_info[i].timestamp * 1000) >> 15,
-			   ((uint64_t)msm_rpm_stat_data->sleep_info[i].timestamp * 1000) >> 15, msm_rpm_stat_data->sleep_info[i].cxo,
-			   msm_rpm_stat_data->sleep_info[i].pxo, msm_rpm_stat_data->sleep_info[i].vdd_mem,
-			   msm_rpm_stat_data->sleep_info[i].vdd_dig);
-#else
-			pr_info("sleep_info_m.%d - %u (%d), %llums, %d %d %d %d\n", i, msm_rpm_stat_data->sleep_info[i].count,
-				(msm_rpm_stat_data->sleep_info[i].stats[0] & 0x1), ((uint64_t)msm_rpm_stat_data->sleep_info[i].total_duration * 1000) >> 15,
+                       pr_info("sleep_info_m.%d - %u (%d), %llums, %d %d %d %d\n", i, msm_rpm_stat_data->sleep_info[i].count,
+                               (msm_rpm_stat_data->sleep_info[i].stats[0] & 0x1), ((uint64_t)msm_rpm_stat_data->sleep_info[i].total_duration * 1000) >> 15,
 				((msm_rpm_stat_data->sleep_info[i].stats[0] & 0x2) >> 1), ((msm_rpm_stat_data->sleep_info[i].stats[0] & 0x4) >>2),
 				((msm_rpm_stat_data->sleep_info[i].stats[0] & 0xfffffff8) >> 3), msm_rpm_stat_data->sleep_info[i].stats[1]);
-#endif
 		}
 	}
 }
@@ -915,14 +898,10 @@ void msm_rpm_dump_stat(void)
 void msm_rpm_set_suspend_flag(bool app_from_suspend)
 {
 	if (msm_rpm_stat_data) {
-#ifdef CONFIG_ARCH_MSM8X60
-		msm_rpm_stat_data->app_from_suspend = (!!app_from_suspend);
-#else
 		if (app_from_suspend)
 			msm_rpm_stat_data->rpm_debug_mode |= RPM_DEBUG_APP_FROM_SUSPEND;
 		else
 			msm_rpm_stat_data->rpm_debug_mode &= ~RPM_DEBUG_APP_FROM_SUSPEND;
-#endif
 	}
 }
 

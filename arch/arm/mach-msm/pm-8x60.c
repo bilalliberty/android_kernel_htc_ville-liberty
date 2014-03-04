@@ -124,32 +124,17 @@ module_param_named(
 );
 
 extern int board_mfg_mode(void);
-#ifdef CONFIG_APQ8064_ONLY 
-extern unsigned long acpuclk_krait_power_collapse(void);
-#endif
 #define CPU_FOOT_PRINT_MAGIC				0xACBDFE00
-#define CPU_FOOT_PRINT_MAGIC_SPC			0xACBDAA00
-#define CPU_FOOT_PRINT_BASE_CPU0_VIRT		(CPU_FOOT_PRINT_BASE + 0x0)
-
-#define HTC_AUDIO_SYS_RESET_COUNT_VA		(CPU_FOOT_PRINT_BASE + 0xAC)
-#define HTC_AUDIO_SYS_RESET_COUNT_MAGIC		0xACBDFE00
-
-static void init_cpu_foot_print(unsigned cpu, bool notify_rpm)
-{
-	unsigned *status = (unsigned *)CPU_FOOT_PRINT_BASE_CPU0_VIRT + cpu;
-	*status = (notify_rpm) ? CPU_FOOT_PRINT_MAGIC : CPU_FOOT_PRINT_MAGIC_SPC;
-	mb();
-}
-
+#define CPU_FOOT_PRINT_BASE_CPU0_VIRT		(MSM_KERNEL_FOOTPRINT_BASE + 0x0)
 static void set_cpu_foot_print(unsigned cpu, unsigned state)
 {
 	unsigned *status = (unsigned *)CPU_FOOT_PRINT_BASE_CPU0_VIRT + cpu;
-	*(unsigned char *)status = (unsigned char)state;
+	*status = (CPU_FOOT_PRINT_MAGIC | state);
 	mb();
 }
 
 #define RESET_VECTOR_CLEAN_MAGIC		0xDCBAABCD
-#define CPU_RESET_VECTOR_CPU0_BASE	(CPU_FOOT_PRINT_BASE + 0x28)
+#define CPU_RESET_VECTOR_CPU0_BASE	(MSM_KERNEL_FOOTPRINT_BASE + 0x28)
 static void clean_reset_vector_debug_info(unsigned cpu)
 {
 	unsigned *reset_vector = (unsigned *)CPU_RESET_VECTOR_CPU0_BASE;
@@ -157,7 +142,7 @@ static void clean_reset_vector_debug_info(unsigned cpu)
 	mb();
 }
 
-#define SAVE_MSM_PM_BOOT_ENTRY_BASE		(CPU_FOOT_PRINT_BASE + 0x20)
+#define SAVE_MSM_PM_BOOT_ENTRY_BASE		(MSM_KERNEL_FOOTPRINT_BASE + 0x20)
 static void store_pm_boot_entry_addr(void)
 {
 	unsigned *addr;
@@ -166,7 +151,7 @@ static void store_pm_boot_entry_addr(void)
 	mb();
 }
 
-#define SAVE_MSM_PM_BOOT_VECTOR_BASE			(CPU_FOOT_PRINT_BASE + 0x24)
+#define SAVE_MSM_PM_BOOT_VECTOR_BASE			(MSM_KERNEL_FOOTPRINT_BASE + 0x24)
 static void store_pm_boot_vector_addr(unsigned value)
 {
 	unsigned *addr;
@@ -174,49 +159,6 @@ static void store_pm_boot_vector_addr(unsigned value)
 	*addr = (unsigned)value;
 	mb();
 }
-
-bool is_audio_sys_reset_count_valid(void)
-{
-	volatile unsigned int *pcnt;
-	pcnt = (volatile unsigned int*)HTC_AUDIO_SYS_RESET_COUNT_VA;
-
-	if (HTC_AUDIO_SYS_RESET_COUNT_MAGIC == (0xFFFFFF00 & (*pcnt)))
-		return true;
-	else
-		return false;
-}
-EXPORT_SYMBOL(is_audio_sys_reset_count_valid);
-
-void audio_sys_reset_count_init(void)
-{
-	volatile unsigned int *pcnt;
-	pcnt = (volatile unsigned int*)HTC_AUDIO_SYS_RESET_COUNT_VA;
-
-	*pcnt = HTC_AUDIO_SYS_RESET_COUNT_MAGIC;
-	mb();
-}
-EXPORT_SYMBOL(audio_sys_reset_count_init);
-
-void audio_sys_reset_count_set(unsigned char data)
-{
-	volatile unsigned char *pcnt;
-	pcnt = (volatile unsigned char*)HTC_AUDIO_SYS_RESET_COUNT_VA;
-
-	*pcnt = data; 
-	mb();
-}
-EXPORT_SYMBOL(audio_sys_reset_count_set);
-
-unsigned char audio_sys_reset_count_get(void)
-{
-	volatile unsigned char *pcnt;
-	pcnt = (volatile unsigned char*)HTC_AUDIO_SYS_RESET_COUNT_VA;
-
-	return (*pcnt); 
-}
-
-EXPORT_SYMBOL(audio_sys_reset_count_get);
-
 
 enum {
 	MSM_PM_MODE_ATTR_SUSPEND,
@@ -619,8 +561,6 @@ static bool __ref msm_pm_spm_power_collapse(
 #endif
 	}
 
-	init_cpu_foot_print(cpu, notify_rpm);
-
 	collapsed = msm_pm_l2x0_power_collapse();
 
 	set_cpu_foot_print(cpu, 0xa);
@@ -753,9 +693,8 @@ static bool msm_pm_power_collapse(bool from_idle)
 
 	if (cpu_online(cpu))
 		saved_acpuclk_rate = acpuclk_power_collapse();
-	else {
+	else
 		saved_acpuclk_rate = 0;
-	}
 
 	if ((!from_idle) && (MSM_PM_DEBUG_CLOCK & msm_pm_debug_mask))
 		pr_info("CPU%u: %s: change clock rate (old rate = %lu)\n",
@@ -867,7 +806,7 @@ int msm_pm_idle_prepare(struct cpuidle_device *dev,
 	uint32_t sleep_us;
 	int i;
 	unsigned int power_usage = -1;
-	int ret = MSM_PM_SLEEP_MODE_NOT_SELECTED;
+	int ret = 0;
 
 	latency_us = (uint32_t) pm_qos_request(PM_QOS_CPU_DMA_LATENCY);
 	sleep_us = (uint32_t) ktime_to_ns(tick_nohz_get_sleep_length());
@@ -890,7 +829,6 @@ int msm_pm_idle_prepare(struct cpuidle_device *dev,
 
 		switch (mode) {
 		case MSM_PM_SLEEP_MODE_POWER_COLLAPSE:
-		case MSM_PM_SLEEP_MODE_RETENTION:
 			if (!allow)
 				break;
 
@@ -909,6 +847,11 @@ int msm_pm_idle_prepare(struct cpuidle_device *dev,
 				allow = false;
 				break;
 			}
+			
+
+		case MSM_PM_SLEEP_MODE_RETENTION:
+			if (!allow)
+				break;
 			
 
 		case MSM_PM_SLEEP_MODE_WAIT_FOR_INTERRUPT:
@@ -1008,28 +951,6 @@ int free_vreg_buffer(void)
 }
 EXPORT_SYMBOL(free_vreg_buffer);
 
-static char *pmic_reg_sleep_status_info;
-
-int print_pmic_reg_buffer(struct seq_file *m)
-{
-	if (pmic_reg_sleep_status_info)
-		seq_printf(m, pmic_reg_sleep_status_info);
-	else
-		seq_printf(m, "Device haven't suspended yet!\n");
-
-	return 0;
-}
-EXPORT_SYMBOL(print_pmic_reg_buffer);
-
-int free_pmic_reg_buffer(void)
-{
-	kfree(pmic_reg_sleep_status_info);
-	pmic_reg_sleep_status_info = NULL;
-
-	return 0;
-}
-EXPORT_SYMBOL(free_pmic_reg_buffer);
-
 int msm_pm_idle_enter(enum msm_pm_sleep_mode sleep_mode)
 {
 	int64_t time;
@@ -1104,14 +1025,9 @@ int msm_pm_idle_enter(enum msm_pm_sleep_mode sleep_mode)
 		break;
 	}
 
-	case MSM_PM_SLEEP_MODE_NOT_SELECTED:
-		goto cpuidle_enter_bail;
-		break;
-
 	default:
 		__WARN();
 		goto cpuidle_enter_bail;
-		break;
 	}
 
 	time = ktime_to_ns(ktime_get()) - time;
@@ -1183,11 +1099,12 @@ void msm_pm_cpu_enter_lowpower(unsigned int cpu)
 		per_cpu(msm_pm_last_slp_mode, cpu)
 			= MSM_PM_SLEEP_MODE_RETENTION;
 		msm_pm_retention();
-	} else {
+	} else if (allow[MSM_PM_SLEEP_MODE_WAIT_FOR_INTERRUPT]) {
 		per_cpu(msm_pm_last_slp_mode, cpu)
 			= MSM_PM_SLEEP_MODE_WAIT_FOR_INTERRUPT;
 		msm_pm_swfi();
-	}
+	} else
+		per_cpu(msm_pm_last_slp_mode, cpu) = MSM_PM_SLEEP_MODE_NR;
 }
 
 int msm_pm_wait_cpu_shutdown(unsigned int cpu)
@@ -1265,24 +1182,6 @@ static int msm_pm_enter(suspend_state_t state)
 		}
 		curr_len = pmic_vreg_dump(vreg_sleep_status_info, curr_len);
 	}
-
-	
-	if (MSM_PM_DEBUG_VREG & msm_pm_debug_mask) {
-		curr_len = 0;
-		if (pmic_reg_sleep_status_info) {
-			memset(pmic_reg_sleep_status_info, 0,
-				sizeof(pmic_reg_sleep_status_info));
-		} else {
-			pmic_reg_sleep_status_info = kmalloc(75000, GFP_ATOMIC);
-			if (!pmic_reg_sleep_status_info) {
-				pr_err("kmalloc memory failed in %s\n",
-					__func__);
-
-			}
-		}
-		curr_len = pmic_suspend_reg_dump(pmic_reg_sleep_status_info, curr_len);
-	}
-	
 
 	if (smp_processor_id()) {
 		__WARN();

@@ -85,8 +85,6 @@ int get_partition_num_by_name(char *name)
 }
 EXPORT_SYMBOL(get_partition_num_by_name);
 
-extern char devlog_part[64];
-char userdata_part[64];
 static int __init parse_tag_msm_partition(const struct tag *tag)
 {
 	struct mtd_partition *ptn = msm_nand_partitions;
@@ -112,12 +110,8 @@ static int __init parse_tag_msm_partition(const struct tag *tag)
 		ptn->offset = entry->offset;
 		ptn->size = entry->size;
 
-		if (!strncmp(ptn->name, "devlog", 6))
-			sprintf(devlog_part, "mmcblk0p%d", (int) ptn->offset);
-		else if (!strncmp(ptn->name, "userdata", 8))
-			sprintf(userdata_part, "mmcblk0p%d", (int) ptn->offset);
 #ifdef CONFIG_MMC_MUST_PREVENT_WP_VIOLATION
-		else if (!strncmp(ptn->name, "system", 6))
+		if (!strncmp(ptn->name, "system", 6))
 			mmc_blk_set_wp_prevention_partno((int) ptn->offset);
 #endif	
 

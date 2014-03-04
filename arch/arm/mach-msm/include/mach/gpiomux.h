@@ -91,21 +91,10 @@ int __must_check msm_gpiomux_get(unsigned gpio);
 
 int msm_gpiomux_put(unsigned gpio);
 
-int msm_gpiomux_read(unsigned gpio);
-
-/* Install a new setting in a gpio.  To erase a slot, use NULL.
- * The old setting that was overwritten can be passed back to the caller
- * old_setting can be NULL if the caller is not interested in the previous
- * setting
- * If a previous setting was not available to return (NULL configuration)
- * - the function returns 1
- * else function returns 0
- */
 int msm_gpiomux_write(unsigned gpio, enum msm_gpiomux_setting which,
 	struct gpiomux_setting *setting, struct gpiomux_setting *old_setting);
 
 void __msm_gpiomux_write(unsigned gpio, struct gpiomux_setting val);
-unsigned __msm_gpiomux_read(unsigned gpio);
 #else
 static inline int msm_gpiomux_init(size_t ngpio)
 {

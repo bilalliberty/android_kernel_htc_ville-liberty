@@ -57,32 +57,6 @@ msm_rpm_log_read(const struct msm_rpm_log_platform_data *pdata, u32 page,
 				+ reg * 4);
 }
 
-/*
- * msm_rpm_log_copy() - Copies messages from a volatile circular buffer in
- *			the RPM's shared memory into a private local buffer
- * msg_buffer:		pointer to local buffer (string)
- * buf_len:		length of local buffer in bytes
- * read_start_idx:	index into shared memory buffer
- *
- * Return value:	number of bytes written to the local buffer
- *
- * Copies messages stored in a circular buffer in the RPM Message Memory into
- * a specified local buffer.  The RPM processor is unaware of these reading
- * efforts, so care is taken to make sure that messages are valid both before
- * and after reading.  The RPM processor utilizes a ULog driver to write the
- * log.  The RPM processor maintains tail and head indices.  These correspond
- * to the next byte to write into, and the first valid byte, respectively.
- * Both indices increase monotonically (except for rollover).
- *
- * Messages take the form of [(u32)length] [(char)data0,1,...] in which the
- * length specifies the number of payload bytes.  Messages must be 4 byte
- * aligned, so padding is added at the end of a message as needed.
- *
- * Print format:
- * - 0xXX, 0xXX, 0xXX
- * - 0xXX
- * etc...
- */
 static u32 msm_rpm_log_copy(const struct msm_rpm_log_platform_data *pdata,
 			    char *msg_buffer, u32 buf_len, u32 *read_idx)
 {

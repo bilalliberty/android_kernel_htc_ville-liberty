@@ -39,15 +39,6 @@ static char *usb_functions_ums[] = {
 	"mass_storage",
 };
 
-static char *usb_functions_ptp[] = {
-	"ptp",
-};
-
-static char *usb_functions_ptp_adb[] = {
-	"ptp",
-	"adb",
-};
-
 static char *usb_functions_adb[] = {
 	"mass_storage",
 	"adb",
@@ -66,35 +57,23 @@ static char *usb_functions_mtp_ums[] = {
 	"mass_storage",
 };
 
+#ifdef CONFIG_USB_ANDROID_ECM
 static char *usb_functions_ecm[] = {
 	"cdc_ethernet",
 };
+#endif
+#ifdef CONFIG_USB_ANDROID_RNDIS
 static char *usb_functions_rndis[] = {
 	"rndis",
-};
-static char *usb_functions_rndis_modem[] = {
-	"rndis",
-	"modem",
 };
 static char *usb_functions_rndis_adb[] = {
 	"rndis",
 	"adb",
 };
-static char *usb_functions_rndis_adb_modem[] = {
-	"rndis",
-	"adb",
-	"modem",
-};
 static char *usb_functions_rndis_mtp_ums[] = {
 	"rndis",
 	"mtp",
 	"mass_storage",
-};
-static char *usb_functions_rndis_mtp_ums_modem[] = {
-	"rndis",
-	"mtp",
-	"mass_storage",
-	"modem",
 };
 static char *usb_functions_rndis_mtp_ums_diag[] = {
 	"rndis",
@@ -105,28 +84,11 @@ static char *usb_functions_rndis_mtp_ums_diag[] = {
 	"diag_mdm",
 #endif
 };
-static char *usb_functions_rndis_mtp_ums_diag_modem[] = {
-	"rndis",
-	"mtp",
-	"mass_storage",
-	"diag",
-	"modem",
-#if defined(CONFIG_USB_ANDROID_MDM9K_DIAG)
-	"diag_mdm",
-#endif
-};
 static char *usb_functions_rndis_mtp_ums_adb[] = {
 	"rndis",
 	"mtp",
 	"adb",
 	"mass_storage",
-};
-static char *usb_functions_rndis_mtp_ums_adb_modem[] = {
-	"rndis",
-	"mtp",
-	"adb",
-	"mass_storage",
-	"modem",
 };
 static char *usb_functions_rndis_mtp_ums_adb_diag[] = {
 	"rndis",
@@ -138,28 +100,10 @@ static char *usb_functions_rndis_mtp_ums_adb_diag[] = {
 	"diag_mdm",
 #endif
 };
-static char *usb_functions_rndis_mtp_ums_adb_diag_modem[] = {
-	"rndis",
-	"mtp",
-	"adb",
-	"mass_storage",
-	"diag",
-	"modem",
-#if defined(CONFIG_USB_ANDROID_MDM9K_DIAG)
-	"diag_mdm",
-#endif
-};
+#if defined(CONFIG_USB_ANDROID_DIAG) || defined(CONFIG_USB_ANDROID_QCT_DIAG)
 static char *usb_functions_rndis_diag[] = {
 	"rndis",
 	"diag",
-#if defined(CONFIG_USB_ANDROID_MDM9K_DIAG)
-	"diag_mdm",
-#endif
-};
-static char *usb_functions_rndis_diag_modem[] = {
-	"rndis",
-	"diag",
-	"modem",
 #if defined(CONFIG_USB_ANDROID_MDM9K_DIAG)
 	"diag_mdm",
 #endif
@@ -172,22 +116,10 @@ static char *usb_functions_rndis_adb_diag[] = {
 	"diag_mdm",
 #endif
 };
-static char *usb_functions_rndis_adb_diag_modem[] = {
-	"rndis",
-	"adb",
-	"diag",
-	"modem",
-#if defined(CONFIG_USB_ANDROID_MDM9K_DIAG)
-	"diag_mdm",
 #endif
-};
+#endif
 static char *usb_functions_accessory[] = { "accessory" };
 static char *usb_functions_accessory_adb[] = { "accessory", "adb" };
-
-static char *usb_functions_audio[] = { "audio_source"};
-static char *usb_functions_audio_adb[] = { "audio_source", "adb" };
-static char *usb_functions_accessory_audio[] = { "accessory", "audio_source"};
-static char *usb_functions_accessory_audio_adb[] = { "accessory", "audio_source", "adb" };
 
 static char *usb_functions_projector[] = {
 	"mass_storage",
@@ -209,6 +141,7 @@ static char *usb_functions_mtp_ums_adb_projector[] = {
 	"mass_storage",
 	"projector",
 };
+#if defined(CONFIG_USB_ANDROID_DIAG) || defined(CONFIG_USB_ANDROID_QCT_DIAG)
 static char *usb_function_adb_diag_projector[] = {
 	"mass_storage",
 	"adb",
@@ -228,6 +161,7 @@ static char *usb_function_mtp_ums_adb_diag_projector[] = {
 	"diag_mdm",
 #endif
 };
+#ifdef CONFIG_USB_ANDROID_SERIAL
 static char *usb_function_adb_diag_modem_projector[] = {
 	"mass_storage",
 	"adb",
@@ -249,7 +183,10 @@ static char *usb_function_mtp_ums_adb_diag_modem_projector[] = {
 	"diag_mdm",
 #endif
 };
+#endif
+#endif
 
+#if defined(CONFIG_USB_ANDROID_MTP36) || defined(CONFIG_USB_ANDROID_MTP)
 static char *usb_functions_mtp[] = {
 	"mtp",
 };
@@ -258,6 +195,7 @@ static char *usb_functions_mtp_adb[] = {
 	"mtp",
 	"adb",
 };
+#endif
 
 #if defined(CONFIG_USB_ANDROID_MTP36) && defined(CONFIG_USB_ANDROID_MTP)
 static char *usb_functions_mtp36[] = {
@@ -270,6 +208,7 @@ static char *usb_functions_mtp36_adb[] = {
 };
 #endif
 
+#if defined(CONFIG_USB_ANDROID_DIAG) || defined(CONFIG_USB_ANDROID_QCT_DIAG)
 static char *usb_functions_diag[] = {
 	"mass_storage",
 	"diag",
@@ -314,7 +253,9 @@ static char *usb_functions_mtp_ums_diag2[] = {
 	"diag",
 	"diag_mdm",
 };
+#endif
 
+#ifdef CONFIG_USB_ANDROID_SERIAL
 static char *usb_functions_adb_serial[] = {
 	"mass_storage",
 	"adb",
@@ -371,6 +312,7 @@ static char *usb_functions_mtp_ums_adb_serial[] = {
 	"mass_storage",
 	"serial",
 };
+#if defined(CONFIG_USB_ANDROID_DIAG) || defined(CONFIG_USB_ANDROID_QCT_DIAG)
 static char *usb_functions_diag_modem[] = {
 	"mass_storage",
 	"diag",
@@ -483,375 +425,28 @@ static char *usb_functions_mtp_ums_diag_modem[] = {
 	"diag_mdm",
 #endif
 };
+#endif
+#endif
 
+#ifdef CONFIG_USB_ANDROID_ACM
 static char *usb_functions_adb_acm[] = {
+	"mass_storage",
 	"adb",
-	"mass_storage",
-	"acm",
-};
-static char *usb_functions_ums_acm[] = {
-	"mass_storage",
 	"acm",
 };
 static char *usb_functions_acm[] = {
 	"acm",
 };
-static char *usb_functions_mtp_ums_acm[] = {
-	"mtp",
-	"mass_storage",
-	"acm",
-};
-static char *usb_functions_mtp_adb_ums_acm[] = {
-	"mtp",
-	"adb",
-	"mass_storage",
-	"acm",
-};
-static char *usb_functions_rndis_ums_acm[] = {
-	"rndis",
-	"mass_storage",
-	"acm",
-};
-static char *usb_functions_rndis_adb_ums_acm[] = {
-	"rndis",
-	"adb",
-	"mass_storage",
-	"acm",
-};
-static char *usb_functions_rndis_mtp_ums_acm[] = {
-	"rndis",
-	"mtp",
-	"mass_storage",
-	"acm",
-};
-static char *usb_functions_rndis_mtp_adb_ums_acm[] = {
-	"rndis",
-	"mtp",
-	"adb",
-	"mass_storage",
-	"acm",
-};
-static char *usb_functions_rndis_mtp_adb_ums_diag_acm[] = {
-	"rndis",
-	"mtp",
-	"adb",
-	"mass_storage",
-	"diag",
-	"acm",
-#if defined(CONFIG_USB_ANDROID_MDM9K_DIAG)
-	"diag_mdm",
 #endif
-};
-static char *usb_functions_rndis_mtp_adb_ums_modem_acm[] = {
-	"rndis",
-	"mtp",
-	"adb",
-	"mass_storage",
-	"modem",
-	"acm",
-};
-static char *usb_functions_rndis_mtp_adb_ums_diag_modem_acm[] = {
-	"rndis",
-	"mtp",
-	"adb",
-	"mass_storage",
-	"diag",
-	"modem",
-	"acm",
-#if defined(CONFIG_USB_ANDROID_MDM9K_DIAG)
-	"diag_mdm",
-#endif
-};
-static char *usb_functions_rndis_mtp_ums_diag_acm[] = {
-	"rndis",
-	"mtp",
-	"mass_storage",
-	"diag",
-	"acm",
-#if defined(CONFIG_USB_ANDROID_MDM9K_DIAG)
-	"diag_mdm",
-#endif
-};
-static char *usb_functions_rndis_mtp_ums_modem_acm[] = {
-	"rndis",
-	"mtp",
-	"mass_storage",
-	"modem",
-	"acm",
-};
-static char *usb_functions_rndis_mtp_ums_diag_modem_acm[] = {
-	"rndis",
-	"mtp",
-	"mass_storage",
-	"diag",
-	"modem",
-	"acm",
-#if defined(CONFIG_USB_ANDROID_MDM9K_DIAG)
-	"diag_mdm",
-#endif
-};
-static char *usb_functions_mtp_adb_ums_diag_acm[] = {
-	"mtp",
-	"adb",
-	"mass_storage",
-	"diag",
-	"acm",
-#if defined(CONFIG_USB_ANDROID_MDM9K_DIAG)
-	"diag_mdm",
-#endif
-};
-static char *usb_functions_mtp_adb_ums_modem_acm[] = {
-	"mtp",
-	"adb",
-	"mass_storage",
-	"modem",
-	"acm",
-};
-static char *usb_functions_mtp_adb_ums_diag_modem_acm[] = {
-	"mtp",
-	"adb",
-	"mass_storage",
-	"diag",
-	"modem",
-	"acm",
-#if defined(CONFIG_USB_ANDROID_MDM9K_DIAG)
-	"diag_mdm",
-#endif
-};
-static char *usb_functions_mtp_ums_diag_acm[] = {
-	"mtp",
-	"mass_storage",
-	"diag",
-	"acm",
-#if defined(CONFIG_USB_ANDROID_MDM9K_DIAG)
-	"diag_mdm",
-#endif
-};
-static char *usb_functions_mtp_ums_modem_acm[] = {
-	"mtp",
-	"mass_storage",
-	"modem",
-	"acm",
-};
-static char *usb_functions_mtp_ums_diag_modem_acm[] = {
-	"mtp",
-	"mass_storage",
-	"diag",
-	"modem",
-	"acm",
-#if defined(CONFIG_USB_ANDROID_MDM9K_DIAG)
-	"diag_mdm",
-#endif
-};
-static char *usb_functions_rndis_adb_ums_diag_acm[] = {
-	"rndis",
-	"adb",
-	"mass_storage",
-	"diag",
-	"acm",
-#if defined(CONFIG_USB_ANDROID_MDM9K_DIAG)
-	"diag_mdm",
-#endif
-};
-static char *usb_functions_rndis_adb_ums_modem_acm[] = {
-	"rndis",
-	"adb",
-	"mass_storage",
-	"modem",
-	"acm",
-};
-static char *usb_functions_rndis_adb_ums_diag_modem_acm[] = {
-	"rndis",
-	"adb",
-	"mass_storage",
-	"diag",
-	"modem",
-	"acm",
-#if defined(CONFIG_USB_ANDROID_MDM9K_DIAG)
-	"diag_mdm",
-#endif
-};
-static char *usb_functions_rndis_ums_diag_acm[] = {
-	"rndis",
-	"mass_storage",
-	"diag",
-	"acm",
-#if defined(CONFIG_USB_ANDROID_MDM9K_DIAG)
-	"diag_mdm",
-#endif
-};
-static char *usb_functions_rndis_ums_modem_acm[] = {
-	"rndis",
-	"mass_storage",
-	"modem",
-	"acm",
-};
-static char *usb_functions_rndis_ums_diag_modem_acm[] = {
-	"rndis",
-	"mass_storage",
-	"diag",
-	"modem",
-	"acm",
-#if defined(CONFIG_USB_ANDROID_MDM9K_DIAG)
-	"diag_mdm",
-#endif
-};
-static char *usb_functions_adb_ums_diag_acm[] = {
-	"adb",
-	"mass_storage",
-	"diag",
-	"acm",
-#if defined(CONFIG_USB_ANDROID_MDM9K_DIAG)
-	"diag_mdm",
-#endif
-};
-static char *usb_functions_adb_ums_modem_acm[] = {
-	"adb",
-	"mass_storage",
-	"modem",
-	"acm",
-};
-static char *usb_functions_adb_ums_diag_modem_acm[] = {
-	"adb",
-	"mass_storage",
-	"diag",
-	"modem",
-	"acm",
-#if defined(CONFIG_USB_ANDROID_MDM9K_DIAG)
-	"diag_mdm",
-#endif
-};
-static char *usb_functions_ums_diag_acm[] = {
-	"mass_storage",
-	"diag",
-	"acm",
-#if defined(CONFIG_USB_ANDROID_MDM9K_DIAG)
-	"diag_mdm",
-#endif
-};
-static char *usb_functions_ums_modem_acm[] = {
-	"mass_storage",
-	"modem",
-	"acm",
-};
-static char *usb_functions_ums_diag_modem_acm[] = {
-	"mass_storage",
-	"diag",
-	"modem",
-	"acm",
-#if defined(CONFIG_USB_ANDROID_MDM9K_DIAG)
-	"diag_mdm",
-#endif
-};
-static char *usb_functions_mtp_adb_ums_diag_serial_acm[] = {
-	"mtp",
-	"adb",
-	"mass_storage",
-	"diag",
-	"serial",
-	"acm",
-#if defined(CONFIG_USB_ANDROID_MDM9K_DIAG)
-	"diag_mdm",
-#endif
-};
-static char *usb_functions_mtp_adb_ums_modem_serial_acm[] = {
-	"mtp",
-	"adb",
-	"mass_storage",
-	"modem",
-	"serial",
-	"acm",
-};
-static char *usb_functions_mtp_adb_ums_diag_modem_serial_acm[] = {
-	"mtp",
-	"adb",
-	"mass_storage",
-	"diag",
-	"modem",
-	"serial",
-	"acm",
-#if defined(CONFIG_USB_ANDROID_MDM9K_DIAG)
-	"diag_mdm",
-#endif
-};
-static char *usb_functions_mtp_ums_diag_serial_acm[] = {
-	"mtp",
-	"mass_storage",
-	"diag",
-	"serial",
-	"acm",
-#if defined(CONFIG_USB_ANDROID_MDM9K_DIAG)
-	"diag_mdm",
-#endif
-};
-static char *usb_functions_mtp_ums_modem_serial_acm[] = {
-	"mtp",
-	"mass_storage",
-	"modem",
-	"serial",
-	"acm",
-};
-static char *usb_functions_mtp_ums_diag_modem_serial_acm[] = {
-	"mtp",
-	"mass_storage",
-	"diag",
-	"modem",
-	"serial",
-	"acm",
-#if defined(CONFIG_USB_ANDROID_MDM9K_DIAG)
-	"diag_mdm",
-#endif
-};
-static char *usb_functions_mtp_ums_projector_acm[] = {
-	"mtp",
-	"mass_storage",
-	"projector",
-	"acm",
-};
-static char *usb_functions_mtp_ums_adb_projector_acm[] = {
-	"mtp",
-	"adb",
-	"mass_storage",
-	"projector",
-	"acm",
-};
-static char *usb_functions_mtp_ums_adb_acm_rmnet[] = {
-	"mtp",
-	"adb",
-	"mass_storage",
-	"acm",
-	"rmnet",
-};
-static char *usb_functions_mtp_ums_acm_rmnet[] = {
-	"mtp",
-	"mass_storage",
-	"acm",
-	"rmnet",
-};
 
 #ifdef CONFIG_USB_ANDROID_NCM
-	#ifdef CONFIG_USB_ANDROID_PROJECTOR
-static char *usb_functions_ncm_adb_projector[] = {
-	"cdc_network",
-	"adb",
-	"projector",
-};
-	#else
 static char *usb_functions_ncm_adb[] = {
-	"cdc_network",
+	"ncm",
 	"adb",
 };
-	#endif
-	#ifdef CONFIG_USB_ANDROID_PROJECTOR
-static char *usb_functions_ncm_projector[] = {
-	"cdc_network",
-	"projector",
-};
-	#else
 static char *usb_functions_ncm[] = {
-	"cdc_network",
+	"ncm",
 };
-	#endif
 #endif
 
 static char *usb_functions_adb_diag_modem_svlte2[] = {
@@ -947,6 +542,9 @@ static char *usb_functions_mtp_ums_diag_modem_svlte2_rment[] = {
 	"rmnet",
 };
 
+#if (defined(CONFIG_USB_ANDROID_RMNET_SDIO) || \
+	defined(CONFIG_USB_ANDROID_RMNET_SMD_SDIO) || \
+	defined(CONFIG_MSM_RMNET_BAM))
 static char *usb_functions_adb_diag_modem_rment[] = {
 	"mass_storage",
 	"adb",
@@ -1024,32 +622,6 @@ static char *usb_functions_mtp_ums_diag_rment[] = {
 #endif
 	"rmnet",
 };
-static char *usb_functions_mtp_modem[] = {
-	"mtp",
-	"modem",
-};
-static char *usb_functions_mtp_adb_modem[] = {
-	"mtp",
-	"adb",
-	"modem",
-};
-static char *usb_functions_mtp_diag_modem[] = {
-	"mtp",
-	"diag",
-#if defined(CONFIG_USB_ANDROID_MDM9K_DIAG)
-	"diag_mdm",
-#endif
-	"modem",
-};
-static char *usb_functions_mtp_adb_diag_modem[] = {
-	"mtp",
-	"adb",
-	"diag",
-#if defined(CONFIG_USB_ANDROID_MDM9K_DIAG)
-	"diag_mdm",
-#endif
-	"modem",
-};
 static char *usb_functions_adb_rment[] = {
 	"mass_storage",
 	"adb",
@@ -1071,32 +643,48 @@ static char *usb_functions_mtp_ums_rment[] = {
 	"rmnet",
 };
 
-static __maybe_unused char *usb_functions_all[] = {
+#endif
+
+static char *usb_functions_all[] = {
+#ifdef CONFIG_USB_ANDROID_RNDIS
 	"rndis",
+#endif
 	"accessory",
+#if defined(CONFIG_USB_ANDROID_MTP36) || defined(CONFIG_USB_ANDROID_MTP)
 	"mtp",
-	"ptp",
+#endif
 #if defined(CONFIG_USB_ANDROID_MTP36) && defined(CONFIG_USB_ANDROID_MTP)
 	"mtp36",
 #endif
-#ifdef CONFIG_USB_ANDROID_NCM
-	"cdc_network",
-#endif
 	"adb",
 	"mass_storage",
+#ifdef CONFIG_USB_ANDROID_ECM
 	"cdc_ethernet",
+#endif
+#if defined(CONFIG_USB_ANDROID_DIAG) || defined(CONFIG_USB_ANDROID_QCT_DIAG)
 	"diag",
+#endif
+#ifdef CONFIG_USB_ANDROID_SERIAL
 	"serial",
+#endif
 	"projector",
+#ifdef CONFIG_USB_ANDROID_ACM
 	"acm",
+#endif
+#ifdef CONFIG_USB_ANDROID_NCM
+	"ncm",
+#endif
 #if defined(CONFIG_USB_ANDROID_MDM9K_DIAG)
 	"diag_mdm",
 #endif
+#if (defined(CONFIG_USB_ANDROID_RMNET_SDIO) || \
+	defined(CONFIG_USB_ANDROID_RMNET_SMD_SDIO) || \
+	defined(CONFIG_MSM_RMNET_BAM))
 	"rmnet",
+#endif
 #ifdef CONFIG_USB_ANDROID_USBNET
 	"usbnet",
 #endif
-	 "audio_source",
 };
 
 static struct android_usb_product usb_products[] = {
@@ -1108,7 +696,7 @@ static struct android_usb_product usb_products[] = {
 	},
 #endif
 	{
-		.product_id	= 0x0f86, 
+		.product_id = 0x0c02, 
 		.num_functions	= ARRAY_SIZE(usb_functions_adb),
 		.functions	= usb_functions_adb,
 	},
@@ -1134,6 +722,7 @@ static struct android_usb_product usb_products[] = {
 		.functions	= usb_functions_usbnet_adb,
 	},
 #endif
+#ifdef CONFIG_USB_ANDROID_ACM
 	{
 		.product_id	= 0x0ff4,
 		.num_functions	= ARRAY_SIZE(usb_functions_acm),
@@ -1144,35 +733,27 @@ static struct android_usb_product usb_products[] = {
 		.num_functions	= ARRAY_SIZE(usb_functions_adb_acm),
 		.functions	= usb_functions_adb_acm,
 	},
+#endif
+#ifdef CONFIG_USB_ANDROID_ECM
 	{
 		.product_id	= 0x0ff8,
 		.num_functions	= ARRAY_SIZE(usb_functions_ecm),
 		.functions	= usb_functions_ecm,
 	},
+#endif
 #ifdef CONFIG_USB_ANDROID_NCM
 	{
-	#ifdef CONFIG_USB_ANDROID_PROJECTOR
-		.product_id	= 0x0f8b,
-		.num_functions	= ARRAY_SIZE(usb_functions_ncm_adb_projector),
-		.functions	= usb_functions_ncm_adb_projector,
-	#else
 		.product_id	= 0x0f92,
 		.num_functions	= ARRAY_SIZE(usb_functions_ncm_adb),
 		.functions	= usb_functions_ncm_adb,
-	#endif
 	},
 	{
-	#ifdef CONFIG_USB_ANDROID_PROJECTOR
-		.product_id	= 0x0f8a,
-		.num_functions	= ARRAY_SIZE(usb_functions_ncm_projector),
-		.functions	= usb_functions_ncm_projector,
-	#else
 		.product_id	= 0x0f93,
 		.num_functions	= ARRAY_SIZE(usb_functions_ncm),
 		.functions	= usb_functions_ncm,
-	#endif
 	},
 #endif
+#ifdef CONFIG_USB_ANDROID_SERIAL
 	{
 		.product_id	= 0x0fc5,
 		.num_functions	= ARRAY_SIZE(usb_functions_serial_modem),
@@ -1224,6 +805,7 @@ static struct android_usb_product usb_products[] = {
 		.num_functions	= ARRAY_SIZE(usb_functions_mtp_ums_modem),
 		.functions	= usb_functions_mtp_ums_modem,
 	},
+#if defined(CONFIG_USB_ANDROID_DIAG) || defined(CONFIG_USB_ANDROID_QCT_DIAG)
 #if defined(CONFIG_USB_ANDROID_MDM9K_DIAG)
 	{
 		.product_id	= 0x0fde,
@@ -1347,6 +929,8 @@ static struct android_usb_product usb_products[] = {
 		.functions	= usb_functions_mtp_ums_diag_modem,
 	},
 #endif
+#endif
+#endif
 	{
 		.product_id	= 0x0c05,
 		.num_functions	= ARRAY_SIZE(usb_functions_projector),
@@ -1367,6 +951,7 @@ static struct android_usb_product usb_products[] = {
 		.num_functions	= ARRAY_SIZE(usb_functions_mtp_ums_projector),
 		.functions	= usb_functions_mtp_ums_projector,
 	},
+#if defined(CONFIG_USB_ANDROID_DIAG) || defined(CONFIG_USB_ANDROID_QCT_DIAG)
 #if defined(CONFIG_USB_ANDROID_MDM9K_DIAG)
 	{
 		.product_id	= 0x0FE3,
@@ -1378,6 +963,7 @@ static struct android_usb_product usb_products[] = {
 		.num_functions	= ARRAY_SIZE(usb_function_mtp_ums_adb_diag_projector),
 		.functions	= usb_function_mtp_ums_adb_diag_projector,
 	},
+#ifdef CONFIG_USB_ANDROID_SERIAL
 	{
 		.product_id	= 0x0FE4,
 		.num_functions	= ARRAY_SIZE(usb_function_adb_diag_modem_projector),
@@ -1388,6 +974,7 @@ static struct android_usb_product usb_products[] = {
 		.num_functions	= ARRAY_SIZE(usb_function_mtp_ums_adb_diag_modem_projector),
 		.functions	= usb_function_mtp_ums_adb_diag_modem_projector,
 	},
+#endif
 #else
 	{
 		.product_id	= 0x0FF1,
@@ -1399,6 +986,7 @@ static struct android_usb_product usb_products[] = {
 		.num_functions	= ARRAY_SIZE(usb_function_mtp_ums_adb_diag_projector),
 		.functions	= usb_function_mtp_ums_adb_diag_projector,
 	},
+#ifdef CONFIG_USB_ANDROID_SERIAL
 	{
 		.product_id	= 0x0FF2,
 		.num_functions	= ARRAY_SIZE(usb_function_adb_diag_modem_projector),
@@ -1410,6 +998,10 @@ static struct android_usb_product usb_products[] = {
 		.functions	= usb_function_mtp_ums_adb_diag_modem_projector,
 	},
 #endif
+#endif
+
+#endif
+#if defined(CONFIG_USB_ANDROID_DIAG) || defined(CONFIG_USB_ANDROID_QCT_DIAG)
 	{
 		.product_id	= 0x0FDC,
 		.num_functions	= ARRAY_SIZE(usb_functions_adb_diag2),
@@ -1450,8 +1042,10 @@ static struct android_usb_product usb_products[] = {
 		.num_functions	= ARRAY_SIZE(usb_functions_mtp_ums_diag),
 		.functions	= usb_functions_mtp_ums_diag,
 	},
+#endif
+#if defined(CONFIG_USB_ANDROID_MTP36) || defined(CONFIG_USB_ANDROID_MTP)
 	{
-		.product_id	= 0x0f87,
+		.product_id	= 0x0ca8,
 		.num_functions	= ARRAY_SIZE(usb_functions_mtp_adb),
 		.functions	= usb_functions_mtp_adb,
 	},
@@ -1460,6 +1054,7 @@ static struct android_usb_product usb_products[] = {
 		.num_functions	= ARRAY_SIZE(usb_functions_mtp),
 		.functions	= usb_functions_mtp,
 	},
+#endif
 #if defined(CONFIG_USB_ANDROID_MTP36) && defined(CONFIG_USB_ANDROID_MTP)
 	{
 		.product_id	= 0x0ca8,
@@ -1472,460 +1067,48 @@ static struct android_usb_product usb_products[] = {
 		.functions	= usb_functions_mtp36,
 	},
 #endif
+#ifdef CONFIG_USB_ANDROID_RNDIS
 	{
 		.product_id	= 0x0ffe,
 		.num_functions	= ARRAY_SIZE(usb_functions_rndis),
 		.functions	= usb_functions_rndis,
-	},
-	
-	{
-		.product_id	= 0x0f80,
-		.num_functions	= ARRAY_SIZE(usb_functions_rndis_modem),
-		.functions	= usb_functions_rndis_modem,
 	},
 	{
 		.product_id	= 0x0ffc,
 		.num_functions	= ARRAY_SIZE(usb_functions_rndis_adb),
 		.functions	= usb_functions_rndis_adb,
 	},
-	
-	{
-		.product_id	= 0x0f81,
-		.num_functions	= ARRAY_SIZE(usb_functions_rndis_adb_modem),
-		.functions	= usb_functions_rndis_adb_modem,
-	},
 	{
 		.product_id	= 0x0fb4,
 		.num_functions	= ARRAY_SIZE(usb_functions_rndis_mtp_ums_adb),
 		.functions	= usb_functions_rndis_mtp_ums_adb,
-	},
-	
-	{
-		.product_id	= 0x0f7b,
-		.num_functions	= ARRAY_SIZE(usb_functions_rndis_mtp_ums_adb_modem),
-		.functions	= usb_functions_rndis_mtp_ums_adb_modem,
 	},
 	{
 		.product_id	= 0x0fb5,
 		.num_functions	= ARRAY_SIZE(usb_functions_rndis_mtp_ums),
 		.functions	= usb_functions_rndis_mtp_ums,
 	},
-	
-	{
-		.product_id	= 0x0f5f,
-		.num_functions	= ARRAY_SIZE(usb_functions_rndis_mtp_adb_ums_acm),
-		.functions	= usb_functions_rndis_mtp_adb_ums_acm,
-	},
-	
-	{
-		.product_id	= 0x0f60,
-		.num_functions	= ARRAY_SIZE(usb_functions_rndis_mtp_ums_acm),
-		.functions	= usb_functions_rndis_mtp_ums_acm,
-	},
-	
-	{
-		.product_id	= 0x0f61,
-		.num_functions	= ARRAY_SIZE(usb_functions_rndis_adb_ums_acm),
-		.functions	= usb_functions_rndis_adb_ums_acm,
-	},
-	
-	{
-		.product_id	= 0x0f62,
-		.num_functions	= ARRAY_SIZE(usb_functions_rndis_ums_acm),
-		.functions	= usb_functions_rndis_ums_acm,
-	},
-	
-	{
-		.product_id	= 0x0f63,
-		.num_functions	= ARRAY_SIZE(usb_functions_mtp_adb_ums_acm),
-		.functions	= usb_functions_mtp_adb_ums_acm,
-	},
-	
-	{
-		.product_id	= 0x0f64,
-		.num_functions	= ARRAY_SIZE(usb_functions_mtp_ums_acm),
-		.functions	= usb_functions_mtp_ums_acm,
-	},
-	
-	{
-		.product_id	= 0x0f65,
-		.num_functions	= ARRAY_SIZE(usb_functions_ums_acm),
-		.functions	= usb_functions_ums_acm,
-	},
-	
-	{
-		.product_id	= 0x0f39,
-		.num_functions	= ARRAY_SIZE(usb_functions_rndis_mtp_adb_ums_modem_acm),
-		.functions	= usb_functions_rndis_mtp_adb_ums_modem_acm,
-	},
-	
-	{
-		.product_id	= 0x0f3e,
-		.num_functions	= ARRAY_SIZE(usb_functions_rndis_mtp_ums_modem_acm),
-		.functions	= usb_functions_rndis_mtp_ums_modem_acm,
-	},
-	
-	{
-		.product_id	= 0x0f43,
-		.num_functions	= ARRAY_SIZE(usb_functions_mtp_adb_ums_modem_acm),
-		.functions	= usb_functions_mtp_adb_ums_modem_acm,
-	},
-	
-	{
-		.product_id	= 0x0f48,
-		.num_functions	= ARRAY_SIZE(usb_functions_mtp_ums_modem_acm),
-		.functions	= usb_functions_mtp_ums_modem_acm,
-	},
-	
-	{
-		.product_id	= 0x0f4d,
-		.num_functions	= ARRAY_SIZE(usb_functions_rndis_adb_ums_modem_acm),
-		.functions	= usb_functions_rndis_adb_ums_modem_acm,
-	},
-	
-	{
-		.product_id	= 0x0f52,
-		.num_functions	= ARRAY_SIZE(usb_functions_rndis_ums_modem_acm),
-		.functions	= usb_functions_rndis_ums_modem_acm,
-	},
-	
-	{
-		.product_id	= 0x0f57,
-		.num_functions	= ARRAY_SIZE(usb_functions_adb_ums_modem_acm),
-		.functions	= usb_functions_adb_ums_modem_acm,
-	},
-	
-	{
-		.product_id	= 0x0f5c,
-		.num_functions	= ARRAY_SIZE(usb_functions_ums_modem_acm),
-		.functions	= usb_functions_ums_modem_acm,
-	},
-	
-	{
-		.product_id	= 0x0f2f,
-		.num_functions	= ARRAY_SIZE(usb_functions_mtp_adb_ums_modem_serial_acm),
-		.functions	= usb_functions_mtp_adb_ums_modem_serial_acm,
-	},
-	
-	{
-		.product_id	= 0x0f34,
-		.num_functions	= ARRAY_SIZE(usb_functions_mtp_ums_modem_serial_acm),
-		.functions	= usb_functions_mtp_ums_modem_serial_acm,
-	},
-	
-	{
-		.product_id	= 0x0f2c,
-		.num_functions	= ARRAY_SIZE(usb_functions_mtp_ums_projector_acm),
-		.functions	= usb_functions_mtp_ums_projector_acm,
-	},
-	
-	{
-		.product_id	= 0x0f2b,
-		.num_functions	= ARRAY_SIZE(usb_functions_mtp_ums_adb_projector_acm),
-		.functions	= usb_functions_mtp_ums_adb_projector_acm,
-	},
-	
-	{
-		.product_id	= 0x0f29,
-		.num_functions	= ARRAY_SIZE(usb_functions_mtp_ums_adb_acm_rmnet),
-		.functions	= usb_functions_mtp_ums_adb_acm_rmnet,
-	},
-	
-	{
-		.product_id	= 0x0f2a,
-		.num_functions	= ARRAY_SIZE(usb_functions_mtp_ums_acm_rmnet),
-		.functions	= usb_functions_mtp_ums_acm_rmnet,
-	},
-
-#if defined(CONFIG_USB_ANDROID_MDM9K_DIAG)
-	{
-		.product_id	= 0x0f38,
-		.num_functions	= ARRAY_SIZE(usb_functions_rndis_mtp_adb_ums_diag_acm),
-		.functions	= usb_functions_rndis_mtp_adb_ums_diag_acm,
-	},
-	{
-		.product_id	= 0x0f3b,
-		.num_functions	= ARRAY_SIZE(usb_functions_rndis_mtp_adb_ums_diag_modem_acm),
-		.functions	= usb_functions_rndis_mtp_adb_ums_diag_modem_acm,
-	},
-	{
-		.product_id	= 0x0f3d,
-		.num_functions	= ARRAY_SIZE(usb_functions_rndis_mtp_ums_diag_acm),
-		.functions	= usb_functions_rndis_mtp_ums_diag_acm,
-	},
-	{
-		.product_id	= 0x0f40,
-		.num_functions	= ARRAY_SIZE(usb_functions_rndis_mtp_ums_diag_modem_acm),
-		.functions	= usb_functions_rndis_mtp_ums_diag_modem_acm,
-	},
-	{
-		.product_id	= 0x0f42,
-		.num_functions	= ARRAY_SIZE(usb_functions_mtp_adb_ums_diag_acm),
-		.functions	= usb_functions_mtp_adb_ums_diag_acm,
-	},
-	{
-		.product_id	= 0x0f45,
-		.num_functions	= ARRAY_SIZE(usb_functions_mtp_adb_ums_diag_modem_acm),
-		.functions	= usb_functions_mtp_adb_ums_diag_modem_acm,
-	},
-	{
-		.product_id	= 0x0f47,
-		.num_functions	= ARRAY_SIZE(usb_functions_mtp_ums_diag_acm),
-		.functions	= usb_functions_mtp_ums_diag_acm,
-	},
-	{
-		.product_id	= 0x0f4a,
-		.num_functions	= ARRAY_SIZE(usb_functions_mtp_ums_diag_modem_acm),
-		.functions	= usb_functions_mtp_ums_diag_modem_acm,
-	},
-	{
-		.product_id	= 0x0f4c,
-		.num_functions	= ARRAY_SIZE(usb_functions_rndis_adb_ums_diag_acm),
-		.functions	= usb_functions_rndis_adb_ums_diag_acm,
-	},
-	{
-		.product_id	= 0x0f4f,
-		.num_functions	= ARRAY_SIZE(usb_functions_rndis_adb_ums_diag_modem_acm),
-		.functions	= usb_functions_rndis_adb_ums_diag_modem_acm,
-	},
-	{
-		.product_id	= 0x0f51,
-		.num_functions	= ARRAY_SIZE(usb_functions_rndis_ums_diag_acm),
-		.functions	= usb_functions_rndis_ums_diag_acm,
-	},
-	{
-		.product_id	= 0x0f54,
-		.num_functions	= ARRAY_SIZE(usb_functions_rndis_ums_diag_modem_acm),
-		.functions	= usb_functions_rndis_ums_diag_modem_acm,
-	},
-	{
-		.product_id	= 0x0f56,
-		.num_functions	= ARRAY_SIZE(usb_functions_adb_ums_diag_acm),
-		.functions	= usb_functions_adb_ums_diag_acm,
-	},
-	{
-		.product_id	= 0x0f59,
-		.num_functions	= ARRAY_SIZE(usb_functions_adb_ums_diag_modem_acm),
-		.functions	= usb_functions_adb_ums_diag_modem_acm,
-	},
-	{
-		.product_id	= 0x0f5b,
-		.num_functions	= ARRAY_SIZE(usb_functions_ums_diag_acm),
-		.functions	= usb_functions_ums_diag_acm,
-	},
-	{
-		.product_id	= 0x0f5e,
-		.num_functions	= ARRAY_SIZE(usb_functions_ums_diag_modem_acm),
-		.functions	= usb_functions_ums_diag_modem_acm,
-	},
-	{
-		.product_id	= 0x0f2e,
-		.num_functions	= ARRAY_SIZE(usb_functions_mtp_adb_ums_diag_serial_acm),
-		.functions	= usb_functions_mtp_adb_ums_diag_serial_acm,
-	},
-	{
-		.product_id	= 0x0f31,
-		.num_functions	= ARRAY_SIZE(usb_functions_mtp_adb_ums_diag_modem_serial_acm),
-		.functions	= usb_functions_mtp_adb_ums_diag_modem_serial_acm,
-	},
-	{
-		.product_id	= 0x0f33,
-		.num_functions	= ARRAY_SIZE(usb_functions_mtp_ums_diag_serial_acm),
-		.functions	= usb_functions_mtp_ums_diag_serial_acm,
-	},
-	{
-		.product_id	= 0x0f36,
-		.num_functions	= ARRAY_SIZE(usb_functions_mtp_ums_diag_modem_serial_acm),
-		.functions	= usb_functions_mtp_ums_diag_modem_serial_acm,
-	},
-#else
-	{
-		.product_id	= 0x0f37,
-		.num_functions	= ARRAY_SIZE(usb_functions_rndis_mtp_adb_ums_diag_acm),
-		.functions	= usb_functions_rndis_mtp_adb_ums_diag_acm,
-	},
-	{
-		.product_id	= 0x0f3a,
-		.num_functions	= ARRAY_SIZE(usb_functions_rndis_mtp_adb_ums_diag_modem_acm),
-		.functions	= usb_functions_rndis_mtp_adb_ums_diag_modem_acm,
-	},
-	{
-		.product_id	= 0x0f3c,
-		.num_functions	= ARRAY_SIZE(usb_functions_rndis_mtp_ums_diag_acm),
-		.functions	= usb_functions_rndis_mtp_ums_diag_acm,
-	},
-	{
-		.product_id	= 0x0f3f,
-		.num_functions	= ARRAY_SIZE(usb_functions_rndis_mtp_ums_diag_modem_acm),
-		.functions	= usb_functions_rndis_mtp_ums_diag_modem_acm,
-	},
-	{
-		.product_id	= 0x0f41,
-		.num_functions	= ARRAY_SIZE(usb_functions_mtp_adb_ums_diag_acm),
-		.functions	= usb_functions_mtp_adb_ums_diag_acm,
-	},
-	{
-		.product_id	= 0x0f44,
-		.num_functions	= ARRAY_SIZE(usb_functions_mtp_adb_ums_diag_modem_acm),
-		.functions	= usb_functions_mtp_adb_ums_diag_modem_acm,
-	},
-	{
-		.product_id	= 0x0f46,
-		.num_functions	= ARRAY_SIZE(usb_functions_mtp_ums_diag_acm),
-		.functions	= usb_functions_mtp_ums_diag_acm,
-	},
-	{
-		.product_id	= 0x0f49,
-		.num_functions	= ARRAY_SIZE(usb_functions_mtp_ums_diag_modem_acm),
-		.functions	= usb_functions_mtp_ums_diag_modem_acm,
-	},
-	{
-		.product_id	= 0x0f4b,
-		.num_functions	= ARRAY_SIZE(usb_functions_rndis_adb_ums_diag_acm),
-		.functions	= usb_functions_rndis_adb_ums_diag_acm,
-	},
-	{
-		.product_id	= 0x0f4e,
-		.num_functions	= ARRAY_SIZE(usb_functions_rndis_adb_ums_diag_modem_acm),
-		.functions	= usb_functions_rndis_adb_ums_diag_modem_acm,
-	},
-	{
-		.product_id	= 0x0f50,
-		.num_functions	= ARRAY_SIZE(usb_functions_rndis_ums_diag_acm),
-		.functions	= usb_functions_rndis_ums_diag_acm,
-	},
-	{
-		.product_id	= 0x0f53,
-		.num_functions	= ARRAY_SIZE(usb_functions_rndis_ums_diag_modem_acm),
-		.functions	= usb_functions_rndis_ums_diag_modem_acm,
-	},
-	{
-		.product_id	= 0x0f55,
-		.num_functions	= ARRAY_SIZE(usb_functions_adb_ums_diag_acm),
-		.functions	= usb_functions_adb_ums_diag_acm,
-	},
-	{
-		.product_id	= 0x0f58,
-		.num_functions	= ARRAY_SIZE(usb_functions_adb_ums_diag_modem_acm),
-		.functions	= usb_functions_adb_ums_diag_modem_acm,
-	},
-	{
-		.product_id	= 0x0f5a,
-		.num_functions	= ARRAY_SIZE(usb_functions_ums_diag_acm),
-		.functions	= usb_functions_ums_diag_acm,
-	},
-	{
-		.product_id	= 0x0f5d,
-		.num_functions	= ARRAY_SIZE(usb_functions_ums_diag_modem_acm),
-		.functions	= usb_functions_ums_diag_modem_acm,
-	},
-	{
-		.product_id	= 0x0f2d,
-		.num_functions	= ARRAY_SIZE(usb_functions_mtp_adb_ums_diag_serial_acm),
-		.functions	= usb_functions_mtp_adb_ums_diag_serial_acm,
-	},
-	{
-		.product_id	= 0x0f30,
-		.num_functions	= ARRAY_SIZE(usb_functions_mtp_adb_ums_diag_modem_serial_acm),
-		.functions	= usb_functions_mtp_adb_ums_diag_modem_serial_acm,
-	},
-	{
-		.product_id	= 0x0f32,
-		.num_functions	= ARRAY_SIZE(usb_functions_mtp_ums_diag_serial_acm),
-		.functions	= usb_functions_mtp_ums_diag_serial_acm,
-	},
-	{
-		.product_id	= 0x0f35,
-		.num_functions	= ARRAY_SIZE(usb_functions_mtp_ums_diag_modem_serial_acm),
-		.functions	= usb_functions_mtp_ums_diag_modem_serial_acm,
-	},
-#endif
-	
-	{
-		.product_id	= 0x0f66,
-		.num_functions	= ARRAY_SIZE(usb_functions_ptp),
-		.functions	= usb_functions_ptp,
-	},
-	
-	{
-		.product_id	= 0x0f67,
-		.num_functions	= ARRAY_SIZE(usb_functions_ptp_adb),
-		.functions	= usb_functions_ptp_adb,
-	},
-	
-	{
-		.product_id	= 0x0f74,
-		.num_functions	= ARRAY_SIZE(usb_functions_mtp_modem),
-		.functions	= usb_functions_mtp_modem,
-	},
-	
-	{
-		.product_id	= 0x0f75,
-		.num_functions	= ARRAY_SIZE(usb_functions_mtp_adb_modem),
-		.functions	= usb_functions_mtp_adb_modem,
-	},
-	
-	{
-		.product_id	= 0x0f7a,
-		.num_functions	= ARRAY_SIZE(usb_functions_rndis_mtp_ums_modem),
-		.functions	= usb_functions_rndis_mtp_ums_modem,
-	},
+#if defined(CONFIG_USB_ANDROID_DIAG) || defined(CONFIG_USB_ANDROID_QCT_DIAG)
 #if defined(CONFIG_USB_ANDROID_MDM9K_DIAG)
 	{
 		.product_id	= 0x0fe5,
 		.num_functions	= ARRAY_SIZE(usb_functions_rndis_adb_diag),
 		.functions	= usb_functions_rndis_adb_diag,
 	},
-	
-	{
-		.product_id	= 0x0f85,
-		.num_functions	= ARRAY_SIZE(usb_functions_rndis_adb_diag_modem),
-		.functions	= usb_functions_rndis_adb_diag_modem,
-	},
 	{
 		.product_id	= 0x0fe6,
 		.num_functions	= ARRAY_SIZE(usb_functions_rndis_diag),
 		.functions	= usb_functions_rndis_diag,
-	},
-	
-	{
-		.product_id	= 0x0f84,
-		.num_functions	= ARRAY_SIZE(usb_functions_rndis_diag_modem),
-		.functions	= usb_functions_rndis_diag_modem,
 	},
 	{
 		.product_id	= 0x0f8e,
 		.num_functions	= ARRAY_SIZE(usb_functions_rndis_mtp_ums_adb_diag),
 		.functions	= usb_functions_rndis_mtp_ums_adb_diag,
 	},
-	
-	{
-		.product_id	= 0x0f7d,
-		.num_functions	= ARRAY_SIZE(usb_functions_rndis_mtp_ums_adb_diag_modem),
-		.functions	= usb_functions_rndis_mtp_ums_adb_diag_modem,
-	},
 	{
 		.product_id	= 0x0f8f,
 		.num_functions	= ARRAY_SIZE(usb_functions_rndis_mtp_ums_diag),
 		.functions	= usb_functions_rndis_mtp_ums_diag,
-	},
-	
-	{
-		.product_id	= 0x0f7c,
-		.num_functions	= ARRAY_SIZE(usb_functions_rndis_mtp_ums_diag_modem),
-		.functions	= usb_functions_rndis_mtp_ums_diag_modem,
-	},
-	
-	{
-		.product_id	= 0x0f78,
-		.num_functions	= ARRAY_SIZE(usb_functions_mtp_diag_modem),
-		.functions	= usb_functions_mtp_diag_modem,
-	},
-	
-	{
-		.product_id	= 0x0f79,
-		.num_functions	= ARRAY_SIZE(usb_functions_mtp_adb_diag_modem),
-		.functions	= usb_functions_mtp_adb_diag_modem,
 	},
 #else
 	{
@@ -1933,57 +1116,23 @@ static struct android_usb_product usb_products[] = {
 		.num_functions	= ARRAY_SIZE(usb_functions_rndis_mtp_ums_diag),
 		.functions	= usb_functions_rndis_mtp_ums_diag,
 	},
-	
-	{
-		.product_id	= 0x0f7e,
-		.num_functions	= ARRAY_SIZE(usb_functions_rndis_mtp_ums_diag_modem),
-		.functions	= usb_functions_rndis_mtp_ums_diag_modem,
-	},
 	{
 		.product_id	= 0x0f8c,
 		.num_functions	= ARRAY_SIZE(usb_functions_rndis_mtp_ums_adb_diag),
 		.functions	= usb_functions_rndis_mtp_ums_adb_diag,
-	},
-	
-	{
-		.product_id	= 0x0f7f,
-		.num_functions	= ARRAY_SIZE(usb_functions_rndis_mtp_ums_adb_diag_modem),
-		.functions	= usb_functions_rndis_mtp_ums_adb_diag_modem,
 	},
 	{
 		.product_id	= 0x0ff6,
 		.num_functions	= ARRAY_SIZE(usb_functions_rndis_adb_diag),
 		.functions	= usb_functions_rndis_adb_diag,
 	},
-	
-	{
-		.product_id	= 0x0f83,
-		.num_functions	= ARRAY_SIZE(usb_functions_rndis_adb_diag_modem),
-		.functions	= usb_functions_rndis_adb_diag_modem,
-	},
 	{
 		.product_id	= 0x0ff7,
 		.num_functions	= ARRAY_SIZE(usb_functions_rndis_diag),
 		.functions	= usb_functions_rndis_diag,
 	},
-	
-	{
-		.product_id	= 0x0f82,
-		.num_functions	= ARRAY_SIZE(usb_functions_rndis_diag_modem),
-		.functions	= usb_functions_rndis_diag_modem,
-	},
-	
-	{
-		.product_id	= 0x0f76,
-		.num_functions	= ARRAY_SIZE(usb_functions_mtp_diag_modem),
-		.functions	= usb_functions_mtp_diag_modem,
-	},
-	
-	{
-		.product_id	= 0x0f77,
-		.num_functions	= ARRAY_SIZE(usb_functions_mtp_adb_diag_modem),
-		.functions	= usb_functions_mtp_adb_diag_modem,
-	},
+#endif
+#endif
 #endif
 	{
 		.vendor_id	= USB_ACCESSORY_VENDOR_ID,
@@ -1997,30 +1146,9 @@ static struct android_usb_product usb_products[] = {
 		.num_functions	= ARRAY_SIZE(usb_functions_accessory_adb),
 		.functions	= usb_functions_accessory_adb,
 	},
-	{ 
-		.vendor_id	= USB_ACCESSORY_VENDOR_ID,
-		.product_id	= USB_AUDIO_PRODUCT_ID,
-		.num_functions	= ARRAY_SIZE(usb_functions_audio),
-		.functions	= usb_functions_audio,
-	},
-	{
-		.vendor_id	= USB_ACCESSORY_VENDOR_ID,
-		.product_id	= USB_AUDIO_ADB_PRODUCT_ID,
-		.num_functions	= ARRAY_SIZE(usb_functions_audio_adb),
-		.functions	= usb_functions_audio_adb,
-	},
-	{
-		.vendor_id	= USB_ACCESSORY_VENDOR_ID,
-		.product_id	= USB_ACCESSORY_AUDIO_PRODUCT_ID,
-		.num_functions	= ARRAY_SIZE(usb_functions_accessory_audio),
-		.functions	= usb_functions_accessory_audio,
-	},
-	{
-		.vendor_id	= USB_ACCESSORY_VENDOR_ID,
-		.product_id	= USB_ACCESSORY_AUDIO_ADB_PRODUCT_ID,
-		.num_functions	= ARRAY_SIZE(usb_functions_accessory_audio_adb),
-		.functions	= usb_functions_accessory_audio_adb,
-	},
+#if (defined(CONFIG_USB_ANDROID_RMNET_SDIO) || \
+	defined(CONFIG_USB_ANDROID_RMNET_SMD_SDIO) || \
+	defined(CONFIG_MSM_RMNET_BAM))
 #ifdef CONFIG_USB_ANDROID_MDM9K_DIAG
 	{
 		.product_id	= 0x0fd2,
@@ -2125,6 +1253,9 @@ static struct android_usb_product usb_products[] = {
 		.num_functions	= ARRAY_SIZE(usb_functions_mtp_ums_rment),
 		.functions	= usb_functions_mtp_ums_rment,
 	},
+#endif
+
+
 	{
 		.product_id	= 0x0fcf,
 		.num_functions	= ARRAY_SIZE(usb_functions_adb_diag_modem_svlte2_rment),
@@ -2186,37 +1317,6 @@ static struct android_usb_product usb_products[] = {
 		.functions	= usb_functions_mtp_ums_modem_svlte2,
 	},
 };
-
-static __maybe_unused int qsc_modem_product_id_match_array[] = {
-	0x0fad, 0x0f68, 
-	0x0fb6, 0x0f69, 
-	0x0f7d, 0x0f6a, 
-	0x0f7c, 0x0f6b, 
-	0x0fab, 0x0f6c, 
-	0x0fac, 0x0f6d, 
-	0x0faf, 0x0f6e, 
-	0x0fae, 0x0f6f, 
-	0x0fbd, 0x0f70, 
-	0x0fbe, 0x0f71, 
-	0x0f8e, 0x0f72, 
-	0x0f8f, 0x0f73, 
-	-1,
-};
-
-static __maybe_unused int qsc_modem_usb_id_match(int product_id, int intrsharing)
-{
-	int *pid_array = qsc_modem_product_id_match_array;
-
-	if (!pid_array)
-		return product_id;
-
-	while (pid_array && pid_array[0] >= 0) {
-		if (product_id == pid_array[0])
-			return pid_array[1];
-		pid_array += 2;
-	}
-	return product_id;
-}
 
 #ifdef CONFIG_USB_GADGET_VERIZON_PRODUCT_ID
 #ifdef CONFIG_MACH_VIGOR

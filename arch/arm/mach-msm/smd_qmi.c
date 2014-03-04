@@ -318,20 +318,6 @@ static void qmi_process_unicast_wds_msg(struct qmi_ctxt *ctxt,
 		if (qmi_get_status(msg, &err)) {
 			printk(KERN_ERR
 			       "qmi: wds: network start failed (%04x)\n", err);
-			
-			ctxt->state = STATE_OFFLINE;
-			ctxt->state_dirty = 1;
-			
-			if (msg->size == 0x000c && (msg->tlv)[10] == 0x0b) {
-				printk(KERN_ERR "qmi: wds: pdp activation collided with CCFC\n");
-				ctxt->state = STATE_OFFLINE;
-				ctxt->state_dirty = 1;
-			}
-			if (msg->size == 0x000c && (msg->tlv)[10] == 0x0c) {
-				printk(KERN_ERR "qmi: wds: pdp activation failed. Cause: Operator-determined barring\n");
-				ctxt->state = STATE_OFFLINE;
-				ctxt->state_dirty = 1;
-			}
 		} else if (qmi_get_tlv(msg, 0x01, sizeof(ctxt->wds_handle), &ctxt->wds_handle)) {
 			printk(KERN_INFO
 			       "qmi: wds no handle?\n");
@@ -574,7 +560,6 @@ static int qmi_network_up(struct qmi_ctxt *ctxt, char *apn)
 {
 	unsigned char data[96 + QMUX_OVERHEAD];
 	struct qmi_msg msg;
-	char *auth_type;
 	char *user;
 	char *pass;
 
@@ -591,13 +576,6 @@ static int qmi_network_up(struct qmi_ctxt *ctxt, char *apn)
 		}
 	}
 
-	for (auth_type = pass; *auth_type; auth_type++) {
-		if (*auth_type == ' ') {
-			*auth_type++ = 0;
-			break;
-		}
-	}
-
 	msg.service = QMI_WDS;
 	msg.client_id = ctxt->wds_client_id;
 	msg.txn_id = ctxt->wds_txn_id;
@@ -608,14 +586,10 @@ static int qmi_network_up(struct qmi_ctxt *ctxt, char *apn)
 	ctxt->wds_txn_id += 2;
 
 	qmi_add_tlv(&msg, 0x14, strlen(apn), apn);
-	if (*auth_type)
-		qmi_add_tlv(&msg, 0x16, strlen(auth_type), auth_type);
 	if (*user) {
-		if (!*auth_type) {
-			unsigned char x;
-			x = 3;
-			qmi_add_tlv(&msg, 0x16, 1, &x);
-		}
+		unsigned char x;
+		x = 3;
+		qmi_add_tlv(&msg, 0x16, 1, &x);
 		qmi_add_tlv(&msg, 0x17, strlen(user), user);
 		if (*pass)
 			qmi_add_tlv(&msg, 0x18, strlen(pass), pass);
@@ -810,7 +784,7 @@ static struct file_operations qmi_fops = {
 };
 
 static struct qmi_ctxt qmi_device0 = {
-	.ch_name = "DATA5_CNTL",
+	.ch_name = "SMD_DATA5_CNTL",
 	.misc = {
 		.minor = MISC_DYNAMIC_MINOR,
 		.name = "qmi0",
@@ -818,7 +792,7 @@ static struct qmi_ctxt qmi_device0 = {
 	}
 };
 static struct qmi_ctxt qmi_device1 = {
-	.ch_name = "DATA6_CNTL",
+	.ch_name = "SMD_DATA6_CNTL",
 	.misc = {
 		.minor = MISC_DYNAMIC_MINOR,
 		.name = "qmi1",
@@ -826,7 +800,7 @@ static struct qmi_ctxt qmi_device1 = {
 	}
 };
 static struct qmi_ctxt qmi_device2 = {
-	.ch_name = "DATA7_CNTL",
+	.ch_name = "SMD_DATA7_CNTL",
 	.misc = {
 		.minor = MISC_DYNAMIC_MINOR,
 		.name = "qmi2",

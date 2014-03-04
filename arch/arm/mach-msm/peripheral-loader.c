@@ -28,7 +28,6 @@
 #include <linux/jiffies.h>
 #include <linux/wakelock.h>
 #include <linux/delay.h>
-#include <linux/completion.h>
 
 #include <asm/uaccess.h>
 #include <asm/setup.h>
@@ -62,8 +61,6 @@ struct pil_device {
 };
 
 #define to_pil_device(d) container_of(d, struct pil_device, dev)
-
-extern struct completion pil_work_finished;
 
 static ssize_t name_show(struct device *dev, struct device_attribute *attr,
 		char *buf)
@@ -343,10 +340,8 @@ void *pil_get(const char *name)
 	struct pil_device *pil;
 	struct pil_device *pil_d;
 	void *retval;
-#if defined(CONFIG_MSM8960_ONLY) || defined(CONFIG_MSM8930_ONLY)
 	static int modem_initialized = 0;
 	int loop_count = 0;
-#endif
 
 	if (!name)
 		return NULL;
@@ -365,7 +360,6 @@ void *pil_get(const char *name)
 		goto err_depends;
 	}
 
-#if defined(CONFIG_MSM8960_ONLY) || defined(CONFIG_MSM8930_ONLY)
 	if (!strcmp("modem", name)) {
 		while (unlikely(!modem_initialized && strcmp("rmt_storage", current->comm) && loop_count++ < 10)) {
 			
@@ -373,14 +367,11 @@ void *pil_get(const char *name)
 			msleep(500);
 		}
 	}
-#endif
 	mutex_lock(&pil->lock);
 	if (!pil->count) {
 		if (!strcmp("modem", name)) {
 			printk("%s: %s(%d) for %s\n", __func__, current->comm, current->pid, name);
-#if defined(CONFIG_MSM8960_ONLY) || defined(CONFIG_MSM8930_ONLY)
 			modem_initialized = 1;
-#endif
 		}
 		ret = load_image(pil);
 		if (ret) {
@@ -391,13 +382,6 @@ void *pil_get(const char *name)
 	pil->count++;
 	pil_set_state(pil, PIL_ONLINE);
 	mutex_unlock(&pil->lock);
-#if defined(CONFIG_MSM8930_ONLY)
-	if (!strcmp("modem", name)) {
-		complete_all(&pil_work_finished);
-	}
-#elif defined(CONFIG_ARCH_APQ8064)
-		complete_all(&pil_work_finished);
-#endif
 out:
 	return retval;
 err_load:
@@ -429,15 +413,8 @@ void pil_put(void *peripheral_handle)
 	if (WARN(!pil->count, "%s: %s: Reference count mismatch\n",
 			pil->desc->name, __func__))
 		goto err_out;
-#ifdef CONFIG_MACH_VILLEC2
-	if (pil->count == 1)
-		goto unlock;
-#endif
 	if (!--pil->count)
 		pil_shutdown(pil);
-#ifdef CONFIG_MACH_VILLEC2
-unlock:
-#endif
 	mutex_unlock(&pil->lock);
 
 	pil_d = find_peripheral(pil->desc->depends_on);

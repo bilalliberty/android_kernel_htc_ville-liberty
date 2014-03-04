@@ -269,9 +269,6 @@ static enum msm_cpu cpu_of_id[] = {
 	[143] = MSM_CPU_8930AA,
 	[144] = MSM_CPU_8930AA,
 
-	
-	[153] = MSM_CPU_8064AB,
-
 };
 
 static enum msm_cpu cur_cpu;
@@ -882,20 +879,6 @@ const int cpu_is_krait_v1(void)
 	case 0x510F04D0:
 	case 0x510F04D1:
 	case 0x510F04D2:
-		return 1;
-
-	default:
-		return 0;
-	};
-}
-
-const int cpu_is_krait_v3(void)
-{
-	switch (read_cpuid_id()) {
-	case 0x512F04D0:
-	case 0x511F06F0:
-	case 0x511F06F1:
-	case 0x510F05D0:
 		return 1;
 
 	default:

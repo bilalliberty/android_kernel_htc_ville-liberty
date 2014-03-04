@@ -66,7 +66,7 @@ static struct kernel_param_ops param_ops_str = {
 module_param_cb(debug_mask, &param_ops_str, &debug_mask, S_IWUSR | S_IRUGO);
 
 #ifdef CONFIG_HTC_PNPMGR
-static int legacy_mode = 0;
+static int legacy_mode = 1;
 module_param_cb(legacy_mode, &param_ops_str, &legacy_mode, S_IWUSR | S_IRUGO);
 extern struct kobject *cpufreq_kobj;
 #endif
@@ -298,7 +298,7 @@ static unsigned int get_cpufreq_ceiling_speed(void)
 {
 	unsigned long irqflags;
 	struct perf_lock *lock;
-	unsigned int perf_level = PERF_LOCK_HIGHEST;
+	unsigned int perf_level = 0;
 
 	
 	if (list_empty(&active_cpufreq_ceiling_locks))
@@ -306,10 +306,11 @@ static unsigned int get_cpufreq_ceiling_speed(void)
 
 	spin_lock_irqsave(&list_lock, irqflags);
 	list_for_each_entry(lock, &active_cpufreq_ceiling_locks, link) {
-		if (lock->level < perf_level)
+		if (lock->level > perf_level)
 			perf_level = lock->level;
 	}
 	spin_unlock_irqrestore(&list_lock, irqflags);
+
 	return cpufreq_ceiling_acpu_table[perf_level];
 }
 
@@ -632,11 +633,9 @@ static void perf_acpu_table_fixup(void)
 			perf_acpu_table[i] = policy_min * 1000;
 	}
 
-#ifdef PERFLOCK_FIX_UP
 	if (table_size >= 1)
 		if (perf_acpu_table[table_size - 1] < policy_max * 1000)
 			perf_acpu_table[table_size - 1] = policy_max * 1000;
-#endif
 }
 
 static void cpufreq_ceiling_acpu_table_fixup(void)

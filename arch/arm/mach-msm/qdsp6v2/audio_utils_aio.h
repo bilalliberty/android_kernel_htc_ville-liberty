@@ -1,6 +1,6 @@
 /* Copyright (C) 2008 Google, Inc.
  * Copyright (C) 2008 HTC Corporation
- * Copyright (c) 2009-2012, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2009-2012, Code Aurora Forum. All rights reserved.
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -172,10 +172,6 @@ struct q6audio_aio {
 	struct audio_aio_drv_operations drv_ops;
 	union msm_audio_event_payload eos_write_payload;
 
-#ifdef CONFIG_ARCH_MSM8X60
-	uint32_t device_events;
-	uint16_t volume;
-#endif 
 	uint32_t drv_status;
 	int event_abort;
 	int eos_rsp;

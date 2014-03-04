@@ -29,7 +29,6 @@
 #include <linux/suspend.h>
 #include <mach/socinfo.h>
 #include <mach/cpufreq.h>
-#include <mach/board.h>
 
 #include "acpuclock.h"
 #ifdef CONFIG_PERFLOCK
@@ -300,13 +299,6 @@ static int __cpuinit msm_cpufreq_init(struct cpufreq_policy *policy)
 #ifdef CONFIG_MSM_CPU_FREQ_SET_MIN_MAX
 	policy->min = CONFIG_MSM_CPU_FREQ_MIN;
 	policy->max = CONFIG_MSM_CPU_FREQ_MAX;
-#endif
-
-#ifdef CONFIG_ARCH_APQ8064
-	if( board_mfg_mode() == 5) {
-		policy->cpuinfo.max_freq = 918000;
-		policy->max = 918000;
-	}
 #endif
 
 	cur_freq = acpuclk_get_rate(policy->cpu);

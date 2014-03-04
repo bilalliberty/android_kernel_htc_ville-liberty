@@ -32,7 +32,6 @@ struct htc_battery_cell {
 	const int	voltage_min;
 	void *chg_param;	
 	void *gauge_param;	
-	void *pj_param; 
 };
 
 
@@ -52,8 +51,6 @@ int htc_battery_cell_set_cur_cell_by_id(int id);
 void *htc_battery_cell_get_cur_cell_charger_cdata(void);
 
 void *htc_battery_cell_get_cur_cell_gauge_cdata(void);
-
-void *htc_battery_cell_get_cur_cell_pj_cdata(void);
 
 int htc_battery_cell_hv_authenticated(void);
 

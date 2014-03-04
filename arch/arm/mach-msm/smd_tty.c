@@ -79,11 +79,7 @@ static struct smd_config smd_configs[] = {
 	{5, "APPS_RIVA_ANT_CMD", NULL, SMD_APPS_WCNSS},
 	{6, "APPS_RIVA_ANT_DATA", NULL, SMD_APPS_WCNSS},
 	{7, "DATA1", NULL, SMD_APPS_MODEM},
-	{9, "DATA4", NULL, SMD_APPS_MODEM},
 	{11, "DATA11", NULL, SMD_APPS_MODEM},
-#ifdef CONFIG_BUILD_OMA_DM
-        {19, "DATA3", NULL, SMD_APPS_MODEM},
-#endif
 	{21, "DATA21", NULL, SMD_APPS_MODEM},
 	{27, "GPSNMEA", NULL, SMD_APPS_MODEM},
 	{36, "LOOPBACK", "LOOPBACK_TTY", SMD_APPS_MODEM},
@@ -141,14 +137,8 @@ static void smd_tty_read(unsigned long param)
 
 		avail = tty_prepare_flip_string(tty, &ptr, avail);
 		if (avail <= 0) {
-			if (!timer_pending(&info->buf_req_timer)) {
-				init_timer(&info->buf_req_timer);
-				info->buf_req_timer.expires = jiffies +
-					((30 * HZ)/1000);
-				info->buf_req_timer.function = buf_req_retry;
-				info->buf_req_timer.data = param;
-				add_timer(&info->buf_req_timer);
-			}
+			mod_timer(&info->buf_req_timer,
+					jiffies + msecs_to_jiffies(30));
 			return;
 		}
 
@@ -508,6 +498,23 @@ static int __init smd_tty_init(void)
 		if (smd_configs[n].dev_name == NULL)
 			smd_configs[n].dev_name = smd_configs[n].port_name;
 
+		if (idx == DS_IDX) {
+			int legacy_ds = 0;
+
+			legacy_ds |= cpu_is_msm7x01() || cpu_is_msm7x25();
+			legacy_ds |= cpu_is_msm7x27() || cpu_is_msm7x30();
+			legacy_ds |= cpu_is_qsd8x50() || cpu_is_msm8x55();
+			legacy_ds |= (cpu_is_msm8960() || cpu_is_msm8930() || cpu_is_msm8930aa()) && (board_mfg_mode() == 8);
+			legacy_ds |= cpu_is_msm8x60() &&
+					(socinfo_get_platform_subtype() == 0x0);
+			#ifdef CONFIG_MACH_DUMMY
+			legacy_ds = 1;
+			#endif
+
+			if (!legacy_ds)
+				continue;
+		}
+
 		tty_register_device(smd_tty_driver, idx, 0);
 		init_completion(&smd_tty[idx].ch_allocated);
 
@@ -517,25 +524,9 @@ static int __init smd_tty_init(void)
 		smd_tty[idx].driver.driver.owner = THIS_MODULE;
 		spin_lock_init(&smd_tty[idx].reset_lock);
 		smd_tty[idx].is_open = 0;
+		setup_timer(&smd_tty[idx].buf_req_timer, buf_req_retry,
+				(unsigned long)&smd_tty[idx]);
 		init_waitqueue_head(&smd_tty[idx].ch_opened_wait_queue);
-		smd_tty[idx].smd = &smd_configs[n];
-
-		if (idx == DS_IDX) {
-			int legacy_ds = 0;
-
-			legacy_ds |= cpu_is_msm7x01() || cpu_is_msm7x25();
-			legacy_ds |= cpu_is_msm7x27() || cpu_is_msm7x30();
-			legacy_ds |= cpu_is_qsd8x50() || cpu_is_msm8x55();
-			legacy_ds |= cpu_is_msm8x60() &&
-					(socinfo_get_platform_subtype() == 0x0);
-			#ifdef CONFIG_MACH_JEWEL_DD
-			legacy_ds = 1;
-			#endif
-
-			if (!legacy_ds)
-				continue;
-		}
-
 		ret = platform_driver_register(&smd_tty[idx].driver);
 
 		if (ret) {
@@ -543,6 +534,7 @@ static int __init smd_tty_init(void)
 			smd_tty[idx].driver.probe = NULL;
 			goto out;
 		}
+		smd_tty[idx].smd = &smd_configs[n];
 	}
 	INIT_DELAYED_WORK(&loopback_work, loopback_probe_worker);
 	return 0;

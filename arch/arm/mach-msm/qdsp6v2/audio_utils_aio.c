@@ -1,6 +1,6 @@
 /* Copyright (C) 2008 Google, Inc.
  * Copyright (C) 2008 HTC Corporation
- * Copyright (c) 2009-2013, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2009-2012, Code Aurora Forum. All rights reserved.
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -25,17 +25,6 @@
 #include <asm/ioctls.h>
 #include <linux/debugfs.h>
 #include "audio_utils_aio.h"
-
-#ifdef CONFIG_MACH_VILLEC2
-#undef pr_info
-#undef pr_err
-#define pr_info(fmt, ...) pr_aud_info(fmt, ##__VA_ARGS__)
-#define pr_err(fmt, ...) pr_aud_err(fmt, ##__VA_ARGS__)
-#endif
-
-#ifdef CONFIG_ARCH_MSM8X60
-#include <mach/qdsp6v2/audio_dev_ctl.h>
-#endif 
 
 #ifdef CONFIG_DEBUG_FS
 ssize_t audio_aio_debug_open(struct inode *inode, struct file *file)
@@ -209,15 +198,8 @@ static int audio_aio_pause(struct q6audio_aio  *audio)
 			pr_err("%s[%p]: pause cmd failed rc=%d\n",
 				__func__, audio, rc);
 
-	} else {
-		pr_debug("%s[%p]: Driver not enabled\n", __func__, audio);
-		pr_debug("%s[%p]:%d Resetting ADRV status pause\n",
-					__func__, audio, __LINE__);
-		audio->drv_status &= ~ADRV_STATUS_PAUSE;
-		pr_debug("%s[%p]:%d:Driver status: %d\n",
-					__func__, audio,__LINE__, audio->drv_status);
-		rc = -1;
-	}
+	} else
+		pr_err("%s[%p]: Driver not enabled\n", __func__, audio);
 	return rc;
 }
 
@@ -226,46 +208,29 @@ static int audio_aio_flush(struct q6audio_aio  *audio)
 	int rc;
 
 	if (audio->enabled) {
-		pr_debug("%s: Driver status: %d\n",
-			__func__, audio->drv_status);
 		if (!(audio->drv_status & ADRV_STATUS_PAUSE)) {
-			pr_debug("%s: Sending pause cmd to DSP\n", __func__);
 			rc = audio_aio_pause(audio);
 			if (rc < 0)
 				pr_err("%s[%p}: pause cmd failed rc=%d\n",
 					__func__, audio,
 					rc);
-			else {
-				pr_debug("%s[%p]: Setting ADRV status pause\n",
-						__func__, audio);
+			else
 				audio->drv_status |= ADRV_STATUS_PAUSE;
-				pr_debug("%s[%p]:%d:Driver status: %d\n",
-						__func__,audio, __LINE__, audio->drv_status);
-			}
 		}
-		pr_debug("%s[%p]: Sending flush cmd to DSP\n", __func__, audio);
 		rc = q6asm_cmd(audio->ac, CMD_FLUSH);
 		if (rc < 0)
 			pr_err("%s[%p]: flush cmd failed rc=%d\n",
 				__func__, audio, rc);
 		
 		if (audio->stopped == 0) {
-			pr_debug("%s[%p]: audio in stop state re-enable\n", __func__, audio);
 			rc = audio_aio_enable(audio);
 			if (rc)
 				pr_err("%s[%p]:audio re-enable failed\n",
 					__func__, audio);
 			else {
-				pr_debug("%s:[%p]%d: audio_aio_enable success\n", __func__, audio, __LINE__);
 				audio->enabled = 1;
-				if (audio->drv_status & ADRV_STATUS_PAUSE) {
-					pr_debug("%s:[%p]%d: Resetting the driver status pause\n",
-							__func__, audio, __LINE__);
+				if (audio->drv_status & ADRV_STATUS_PAUSE)
 					audio->drv_status &= ~ADRV_STATUS_PAUSE;
-					pr_debug("%s:[%p]%d:Driver status: %d\n",
-							__func__, audio, __LINE__, audio->drv_status);
-
-				}
 			}
 		}
 	}
@@ -295,24 +260,19 @@ void audio_aio_async_write_ack(struct q6audio_aio *audio, uint32_t token,
 	unsigned long flags;
 	union msm_audio_event_payload event_payload;
 	struct audio_aio_buffer_node *used_buf;
-	pr_debug("%s[%p]:%d ++\n",__func__, audio, __LINE__);
 
 	
-	if (audio->wflush){
-		pr_debug("%s[%p]:%d wflush 1, skip\n",__func__, audio, __LINE__);
+	if (audio->wflush)
 		return;
-	}
 
 	spin_lock_irqsave(&audio->dsp_lock, flags);
 	BUG_ON(list_empty(&audio->out_queue));
 	used_buf = list_first_entry(&audio->out_queue,
 					struct audio_aio_buffer_node, list);
 	if (token == used_buf->token) {
-		pr_debug("%s[%p]:consumed buffer\nth buf addr: %p",
-			__func__, audio, used_buf->buf.buf_addr);
 		list_del(&used_buf->list);
 		spin_unlock_irqrestore(&audio->dsp_lock, flags);
-		
+		pr_debug("%s[%p]:consumed buffer\n", __func__, audio);
 		event_payload.aio_buf = used_buf->buf;
 		audio_aio_post_event(audio, AUDIO_EVENT_WRITE_DONE,
 					event_payload);
@@ -328,7 +288,6 @@ void audio_aio_async_write_ack(struct q6audio_aio *audio, uint32_t token,
 			__func__, audio, used_buf->token, token);
 		spin_unlock_irqrestore(&audio->dsp_lock, flags);
 	}
-	pr_debug("%s[%p]:%d --\n",__func__, audio, __LINE__);
 }
 
 void audio_aio_async_out_flush(struct q6audio_aio *audio)
@@ -338,7 +297,7 @@ void audio_aio_async_out_flush(struct q6audio_aio *audio)
 	union msm_audio_event_payload payload;
 	unsigned long flags;
 
-	pr_debug("%s[%p]\n", __func__, audio);
+	pr_debug("%s[%p}\n", __func__, audio);
 	spin_lock_irqsave(&audio->dsp_lock, flags);
 
 	if (audio->eos_flag && (audio->eos_write_payload.aio_buf.buf_addr)) {
@@ -352,12 +311,9 @@ void audio_aio_async_out_flush(struct q6audio_aio *audio)
 	spin_unlock_irqrestore(&audio->dsp_lock, flags);
 	list_for_each_safe(ptr, next, &audio->out_queue) {
 		buf_node = list_entry(ptr, struct audio_aio_buffer_node, list);
-		pr_debug("%s[%p]: removing the buffer with addr from out_queue %p\n",
-			__func__, audio, buf_node->buf.buf_addr);
 		list_del(&buf_node->list);
 		payload.aio_buf = buf_node->buf;
-		
-		
+		audio_aio_post_event(audio, AUDIO_EVENT_WRITE_DONE, payload);
 		kfree(buf_node);
 		pr_debug("%s[%p]: Propagate WRITE_DONE during flush\n",
 				__func__, audio);
@@ -496,9 +452,6 @@ int audio_aio_release(struct inode *inode, struct file *file)
 	audio_aio_disable(audio);
 	audio_aio_reset_ion_region(audio);
 	ion_client_destroy(audio->client);
-	#ifdef CONFIG_ARCH_MSM8X60
-	auddev_unregister_evt_listner(AUDDEV_CLNT_DEC, audio->ac->session);
-	#endif
 	audio->event_abort = 1;
 	wake_up(&audio->event_wait);
 	audio_aio_reset_event_queue(audio);
@@ -527,28 +480,17 @@ int audio_aio_fsync(struct file *file, loff_t start, loff_t end, int datasync)
 
 	
 	mutex_lock(&audio->lock);
-	pr_debug("%s:[%p]%d: setting the driver status fsync\n",
-							__func__,audio, __LINE__);
 	audio->drv_status |= ADRV_STATUS_FSYNC;
-	pr_debug("%s:[%p]%d:Driver status: %d\n",
-			__func__, audio,__LINE__, audio->drv_status);
 	mutex_unlock(&audio->lock);
 
 	pr_debug("%s[%p]:\n", __func__, audio);
 
+	mutex_lock(&audio->write_lock);
 	audio->eos_rsp = 0;
 
-	pr_debug("%s[%p]Wait for write done from DSP\n", __func__, audio);
 	rc = wait_event_interruptible(audio->write_wait,
 					(list_empty(&audio->out_queue)) ||
 					audio->wflush || audio->stopped);
-
-	if (audio->stopped || audio->wflush) {
-		pr_debug("%s[%p]: Audio Flushed or Stopped,this is not EOS\n"
-			, __func__, audio);
-		audio->wflush = 0;
-		rc = -EBUSY;
-	}
 
 	if (rc < 0) {
 		pr_err("%s[%p]: wait event for list_empty failed, rc = %d\n",
@@ -557,14 +499,11 @@ int audio_aio_fsync(struct file *file, loff_t start, loff_t end, int datasync)
 	}
 
 	rc = q6asm_cmd(audio->ac, CMD_EOS);
-	pr_debug("%s[%p]: EOS cmd sent to DSP\n", __func__, audio);
 
 	if (rc < 0)
 		pr_err("%s[%p]: q6asm_cmd failed, rc = %d",
 			__func__, audio, rc);
 
-	pr_debug("%s[%p]: wait for RENDERED_EOS from DSP\n"
-		, __func__, audio);
 	rc = wait_event_interruptible(audio->write_wait,
 					(audio->eos_rsp || audio->wflush ||
 					audio->stopped));
@@ -575,24 +514,24 @@ int audio_aio_fsync(struct file *file, loff_t start, loff_t end, int datasync)
 		goto done;
 	}
 
-	if (audio->stopped || audio->wflush) {
-		audio->wflush = 0;
-		pr_debug("%s[%p]: Audio Flushed or Stopped,this is not EOS\n"
-			, __func__, audio);
-		rc = -EBUSY;
+	if (audio->eos_rsp == 1) {
+		rc = audio_aio_enable(audio);
+		if (rc)
+			pr_err("%s[%p]: audio enable failed\n",
+				__func__, audio);
+		else {
+			audio->drv_status &= ~ADRV_STATUS_PAUSE;
+			audio->enabled = 1;
+		}
 	}
 
-	if (audio->eos_rsp == 1)
-		pr_debug("%s[%p]: EOS\n", __func__, audio);
-
+	if (audio->stopped || audio->wflush)
+		rc = -EBUSY;
 
 done:
+	mutex_unlock(&audio->write_lock);
 	mutex_lock(&audio->lock);
-	pr_debug("%s:[%p]%d: Resetting the driver status fsync\n",
-							__func__, audio, __LINE__);
 	audio->drv_status &= ~ADRV_STATUS_FSYNC;
-	pr_debug("%s:[%p]%d:Driver status: %d\n",
-			__func__, audio,__LINE__, audio->drv_status);
 	mutex_unlock(&audio->lock);
 
 	return rc;
@@ -1023,40 +962,9 @@ static void audio_aio_ioport_reset(struct q6audio_aio *audio)
 			audio->drv_ops.out_flush(audio);
 		} else
 			audio->drv_ops.out_flush(audio);
-		if (audio->feedback == NON_TUNNEL_MODE)
-			audio->drv_ops.in_flush(audio);
+		audio->drv_ops.in_flush(audio);
 	}
 }
-
-#ifdef CONFIG_ARCH_MSM8X60
-static void audio_aio_listner(u32 evt_id, union auddev_evt_data *evt_payload,
-			void *private_data)
-{
-	struct q6audio_aio *audio = (struct q6audio_aio *) private_data;
-	int rc  = 0;
-
-	switch (evt_id) {
-	case AUDDEV_EVT_STREAM_VOL_CHG:
-		audio->volume = evt_payload->session_vol;
-		pr_debug("%s[%p]: AUDDEV_EVT_STREAM_VOL_CHG, stream vol %d, enabled = %d\n",
-			__func__, audio, audio->volume, audio->enabled);
-		if (audio->enabled == 1) {
-			if (audio->ac) {
-				rc = q6asm_set_volume(audio->ac, audio->volume);
-				if (rc < 0) {
-					pr_err("%s[%p]: Send Volume command failed rc=%d\n",
-						__func__, audio, rc);
-				}
-			}
-		}
-		break;
-	default:
-		pr_err("%s[%p]:ERROR:wrong event\n", __func__, audio);
-		break;
-	}
-}
-#endif 
-
 
 int audio_aio_open(struct q6audio_aio *audio, struct file *file)
 {
@@ -1122,24 +1030,7 @@ int audio_aio_open(struct q6audio_aio *audio, struct file *file)
 		goto fail;
 	}
 	pr_debug("Ion client create in audio_aio_open %p", audio->client);
-
-#ifdef CONFIG_ARCH_MSM8X60
-	audio->device_events = AUDDEV_EVT_STREAM_VOL_CHG;
-	audio->drv_status &= ~ADRV_STATUS_PAUSE;
-
-	rc = auddev_register_evt_listner(audio->device_events,
-					AUDDEV_CLNT_DEC,
-					audio->ac->session,
-					audio_aio_listner,
-					(void *)audio);
-	if (rc < 0) {
-		pr_err("%s[%p]: Event listener failed\n", __func__, audio);
-		rc = -EACCES;
-	}
-#endif 
-
 	return 0;
-
 fail:
 	q6asm_audio_client_free(audio->ac);
 	kfree(audio->codec_cfg);
@@ -1155,12 +1046,8 @@ long audio_aio_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	switch (cmd) {
 	case AUDIO_GET_STATS: {
 		struct msm_audio_stats stats;
-		uint64_t timestamp;
-		
 		stats.byte_count = atomic_read(&audio->in_bytes);
 		stats.sample_count = atomic_read(&audio->in_samples);
-		q6asm_get_session_time(audio->ac, &timestamp);
-		memcpy(&stats.unused[0], &timestamp, sizeof(timestamp));
 		if (copy_to_user((void *)arg, &stats, sizeof(stats)))
 			rc = -EFAULT;
 		break;
@@ -1176,13 +1063,11 @@ long audio_aio_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		break;
 	}
 	case AUDIO_ABORT_GET_EVENT: {
-		
 		audio->event_abort = 1;
 		wake_up(&audio->event_wait);
 		break;
 	}
 	case AUDIO_ASYNC_WRITE: {
-		pr_info("%s[%p](%d) AUDIO_ASYNC_WRITE +++\n", __func__, audio, __LINE__);
 		mutex_lock(&audio->write_lock);
 		if (audio->drv_status & ADRV_STATUS_FSYNC)
 			rc = -EBUSY;
@@ -1194,11 +1079,9 @@ long audio_aio_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 				rc = -EPERM;
 		}
 		mutex_unlock(&audio->write_lock);
-		pr_info("%s[%p](%d) AUDIO_ASYNC_WRITE ---\n", __func__, audio, __LINE__);
 		break;
 	}
 	case AUDIO_ASYNC_READ: {
-		
 		mutex_lock(&audio->read_lock);
 		if ((audio->feedback) && (audio->enabled))
 			rc = audio_aio_buf_add(audio, 0,
@@ -1221,33 +1104,20 @@ long audio_aio_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		break;
 	}
 	case AUDIO_STOP: {
-		pr_debug("%s[%p]: AUDIO_STOP session_id[%d] +++\n", __func__,
+		pr_debug("%s[%p]: AUDIO_STOP session_id[%d]\n", __func__,
 				audio, audio->ac->session);
 		mutex_lock(&audio->lock);
 		audio->stopped = 1;
 		audio_aio_flush(audio);
 		audio->enabled = 0;
-		pr_debug("%s:[%p]%d: Resetting the driver status pause\n",
-				__func__, audio, __LINE__);
 		audio->drv_status &= ~ADRV_STATUS_PAUSE;
-		pr_debug("%s:[%p]%d:Driver status: %d\n",
-			__func__, audio, __LINE__, audio->drv_status);
 		if (rc < 0) {
 			pr_err("%s[%p]:Audio Stop procedure failed rc=%d\n",
 				__func__, audio, rc);
 			mutex_unlock(&audio->lock);
 			break;
 		}
-		
-		if (audio->drv_status & ADRV_STATUS_FSYNC){
-			pr_debug("%s[%p]: AUDIO_STOP: fsync state, wake up write_wait\n", __func__, audio);
-			wake_up(&audio->write_wait);
-		}
-		
 		mutex_unlock(&audio->lock);
-		pr_debug("%s[%p]: AUDIO_STOP session_id[%d] ---\n", __func__,
-				audio, audio->ac->session);
-
 		break;
 	}
 	case AUDIO_PAUSE: {
@@ -1258,13 +1128,7 @@ long audio_aio_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			if (rc < 0)
 				pr_err("%s[%p]: pause FAILED rc=%d\n",
 					__func__, audio, rc);
-			else {
-				pr_debug("%s[%p]:%d: setting the driver status pause\n",
-					__func__, audio, __LINE__);
-				audio->drv_status |= ADRV_STATUS_PAUSE;
-				pr_debug("%s[%p]:%d:Driver status: %d\n",
-				__func__, audio, __LINE__, audio->drv_status);
-			}
+			audio->drv_status |= ADRV_STATUS_PAUSE;
 		} else if (arg == 0) {
 			if (audio->drv_status & ADRV_STATUS_PAUSE) {
 				rc = audio_aio_enable(audio);
@@ -1272,11 +1136,7 @@ long audio_aio_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 					pr_err("%s[%p]: audio enable failed\n",
 					__func__, audio);
 				else {
-					pr_debug("%s:[%p]%d: Resetting the driver status pause\n",
-							__func__, audio, __LINE__);
 					audio->drv_status &= ~ADRV_STATUS_PAUSE;
-					pr_debug("%s:[%p]%d:Driver status: %d\n",
-							__func__, audio, __LINE__, audio->drv_status);
 					audio->enabled = 1;
 				}
 			}
@@ -1300,11 +1160,7 @@ long audio_aio_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			rc = -EINTR;
 		} else {
 			audio->rflush = 0;
-			if (audio->drv_status & ADRV_STATUS_FSYNC)
-				wake_up(&audio->write_wait);
-			else
-				audio->wflush = 0;
-
+			audio->wflush = 0;
 		}
 		audio->eos_flag = 0;
 		audio->eos_rsp = 0;

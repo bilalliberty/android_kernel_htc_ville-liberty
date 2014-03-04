@@ -680,9 +680,11 @@ struct msm_hdmi_platform_data {
 	int (*gpio_config)(int on);
 	int (*init_irq)(void);
 	bool (*check_hdcp_hw_support)(void);
+	bool (*source)(void);
 	bool is_mhl_enabled;
 	mhl_driving_params *driving_params;
-	int dirving_params_count;
+	int driving_params_count;
+
 };
 
 struct msm_mhl_platform_data {
@@ -871,4 +873,5 @@ extern int dying_processors_read_proc(char *page, char **start, off_t off,
 			   int count, int *eof, void *data);
 
 extern int get_partition_num_by_name(char *name);
-#endif
+
+#endif /* __MSM_HDMI_MODES_H__ */

@@ -114,6 +114,7 @@ void wtd_dump_irqs(unsigned int dump)
 EXPORT_SYMBOL(wtd_dump_irqs);
 
 #define APPS_WDOG_FOOT_PRINT_MAGIC	0xACBDFE00
+#define APPS_WDOG_FOOT_PRINT_BASE	(MSM_KERNEL_FOOTPRINT_BASE + 0x100)
 #define APPS_WDOG_FOOT_PRINT_EN		(APPS_WDOG_FOOT_PRINT_BASE + 0x0)
 #define APPS_WDOD_FOOT_PRINT_PET	(APPS_WDOG_FOOT_PRINT_BASE + 0x4)
 #define MPM_SCLK_COUNT_VAL    0x0024
@@ -122,12 +123,6 @@ void set_WDT_EN_footprint(unsigned WDT_ENABLE)
 	unsigned *status = (unsigned *)APPS_WDOG_FOOT_PRINT_EN;
 	*status = (APPS_WDOG_FOOT_PRINT_MAGIC | WDT_ENABLE);
 	mb();
-}
-
-int check_WDT_EN_footprint(void)
-{
-	unsigned *status = (unsigned *)APPS_WDOG_FOOT_PRINT_EN;
-	return *status & 0xFF;
 }
 
 void set_dog_pet_footprint(void)
@@ -160,37 +155,6 @@ uint32_t mpm_get_timetick(void)
 	return tick;
 }
 #endif
-
-#define PET_CHECK_THRESHOLD	12
-#define NSEC_PER_THRESHOLD	PET_CHECK_THRESHOLD * NSEC_PER_SEC
-static int pet_check_counter = PET_CHECK_THRESHOLD;
-static unsigned long long last_pet_check;
-
-extern void show_pending_work_on_gcwq(void);
-
-void msm_watchdog_check_pet(unsigned long long timestamp)
-{
-	if (!enable || !msm_tmr0_base || !check_WDT_EN_footprint())
-		return;
-
-	if (timestamp - last_pet > (unsigned long long)NSEC_PER_THRESHOLD) {
-		if (timestamp - last_pet_check > (unsigned long long)NSEC_PER_SEC) {
-			last_pet_check = timestamp;
-			pr_info("\n%s: MSM watchdog was blocked for more than %d seconds!\n",
-				__func__, pet_check_counter++);
-			pr_info("%s: Prepare to dump stack...\n",
-				__func__);
-			dump_stack();
-			pr_info("%s: Prepare to dump pending works on global workqueue...\n",
-				__func__);
-			show_pending_work_on_gcwq();
-			pr_info("\n ### Show Blocked State ###\n");
-			show_state_filter(TASK_UNINTERRUPTIBLE);
-		}
-	}
-}
-EXPORT_SYMBOL(msm_watchdog_check_pet);
-
 int msm_watchdog_suspend(struct device *dev)
 {
 	if (!enable || !msm_tmr0_base)
@@ -214,7 +178,6 @@ int msm_watchdog_resume(struct device *dev)
 	__raw_writel(1, msm_tmr0_base + WDT0_RST);
 	last_pet = sched_clock();
 	mb();
-	set_dog_pet_footprint();
 	set_WDT_EN_footprint(1);
 	printk(KERN_DEBUG "msm_watchdog_resume\n");
 	mb();
@@ -343,13 +306,11 @@ void pet_watchdog(void)
        htc_watchdog_top_stat();
 #endif
 }
-EXPORT_SYMBOL(pet_watchdog);
 
 static void pet_watchdog_work(struct work_struct *work)
 {
 	pet_watchdog();
 	set_dog_pet_footprint();
-	pet_check_counter = PET_CHECK_THRESHOLD;
 	if (enable)
 		schedule_delayed_work_on(0, &dogwork_struct, delay_time);
 
@@ -465,44 +426,6 @@ struct fiq_handler wdog_fh = {
 	.name = MODULE_NAME,
 };
 
-static void set_bark_bite_time(u64 timeout, int wait)
-{
-	int counter = wait;
-	u64 bark_time = timeout;
-	u64 bite_time = timeout + 3*WDT_HZ;
-
-	__raw_writel(bark_time, msm_tmr0_base + WDT0_BARK_TIME);
-	while(__raw_readl(msm_tmr0_base + WDT0_BARK_TIME) != bark_time
-			&& counter != 0) {
-		mdelay(1);
-		counter--;
-	}
-
-	if (counter == 0) {
-		pr_err("%s: error setting WDT0_BARK_TIME to %llu. value is = %d\n",
-			__func__, bark_time, __raw_readl(msm_tmr0_base + WDT0_BARK_TIME));
-	} else {
-		pr_info("%s: successfully set WDT0_BARK_TIME to %llu in %d milliseconds!\n",
-			__func__, bark_time, wait - counter);
-	}
-
-	counter = wait;
-	__raw_writel(bite_time, msm_tmr0_base + WDT0_BITE_TIME);
-	while(__raw_readl(msm_tmr0_base + WDT0_BITE_TIME) != bite_time
-			&& counter != 0) {
-		mdelay(1);
-		counter--;
-	}
-
-	if (counter == 0) {
-		pr_err("%s: error setting WDT0_BITE_TIME to %llu. value is = %d\n",
-			__func__, bite_time, __raw_readl(msm_tmr0_base + WDT0_BITE_TIME));
-	} else {
-		pr_info("%s: successfully set WDT0_BITE_TIME to %llu in %d milliseconds!\n",
-			__func__, bite_time, wait - counter);
-	}
-}
-
 static void init_watchdog_work(struct work_struct *work)
 {
 	u64 timeout = (bark_time * WDT_HZ)/1000;
@@ -545,11 +468,8 @@ static void init_watchdog_work(struct work_struct *work)
 
 	configure_bark_dump();
 
-	
-	__raw_writel(0, msm_tmr0_base + WDT0_EN);
-	__raw_writel(1, msm_tmr0_base + WDT0_RST);
-
-	set_bark_bite_time(timeout, 1000);
+	__raw_writel(timeout, msm_tmr0_base + WDT0_BARK_TIME);
+	__raw_writel(timeout + 3*WDT_HZ, msm_tmr0_base + WDT0_BITE_TIME);
 
 	schedule_delayed_work_on(0, &dogwork_struct, delay_time);
 

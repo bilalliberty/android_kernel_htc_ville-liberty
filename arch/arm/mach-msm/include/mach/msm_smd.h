@@ -119,11 +119,6 @@ int smd_read(smd_channel_t *ch, void *data, int len);
 int smd_read_from_cb(smd_channel_t *ch, void *data, int len);
 int smd_read_user_buffer(smd_channel_t *ch, void *data, int len);
 
-/* Write to stream channels may do a partial write and return
-** the length actually written.
-** Write to packet channels will never do a partial write --
-** it will return the requested length written or an error.
-*/
 int smd_write(smd_channel_t *ch, const void *data, int len);
 int smd_write_user_buffer(smd_channel_t *ch, const void *data, int len);
 
@@ -145,49 +140,14 @@ smd_tiocmset_from_cb(smd_channel_t *ch, unsigned int set, unsigned int clear);
 int smd_named_open_on_edge(const char *name, uint32_t edge, smd_channel_t **_ch,
 			   void *priv, void (*notify)(void *, unsigned));
 
-/* Tells the other end of the smd channel that this end wants to recieve
- * interrupts when the written data is read.  Read interrupts should only
- * enabled when there is no space left in the buffer to write to, thus the
- * interrupt acts as notification that space may be avaliable.  If the
- * other side does not support enabling/disabling interrupts on demand,
- * then this function has no effect if called.
- */
 void smd_enable_read_intr(smd_channel_t *ch);
 
-/* Tells the other end of the smd channel that this end does not want
- * interrupts when written data is read.  The interrupts should be
- * disabled by default.  If the other side does not support enabling/
- * disabling interrupts on demand, then this function has no effect if
- * called.
- */
 void smd_disable_read_intr(smd_channel_t *ch);
 
 int smd_write_start(smd_channel_t *ch, int len);
 
-/* Writes a segment of the packet for a packet transaction.
- *
- * @ch: channel to write packet to
- * @data: buffer of data to write
- * @len: length of data buffer
- * @user_buf: (0) - buffer from kernelspace    (1) - buffer from userspace
- *
- * Returns:
- *      number of bytes written
- *      -ENODEV - invalid smd channel
- *      -EINVAL - invalid length
- *      -ENOEXEC - transaction not started
- */
 int smd_write_segment(smd_channel_t *ch, void *data, int len, int user_buf);
 
-/* Completes a packet transaction.  Do not call from interrupt context.
- *
- * @ch: channel to complete transaction on
- *
- * Returns:
- *      0 - success
- *      -ENODEV - invalid smd channel
- *      -E2BIG - some ammount of packet is not yet written
- */
 int smd_write_end(smd_channel_t *ch);
 
 const char *smd_edge_to_subsystem(uint32_t type);

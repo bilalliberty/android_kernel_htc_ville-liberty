@@ -15,8 +15,9 @@
 #include <linux/init.h>
 #include <linux/cpuidle.h>
 #include <linux/cpu_pm.h>
+
 #include <mach/cpuidle.h>
-#include <trace/events/power.h>
+
 #include "pm.h"
 
 static DEFINE_PER_CPU_SHARED_ALIGNED(struct cpuidle_device, msm_cpuidle_devs);
@@ -113,7 +114,6 @@ static int msm_cpuidle_enter(
 #endif
 
 	pm_mode = msm_pm_idle_prepare(dev, drv, index);
-	trace_cpu_idle_rcuidle(pm_mode + 1, dev->cpu);
 	dev->last_residency = msm_pm_idle_enter(pm_mode);
 	for (i = 0; i < dev->state_count; i++) {
 		st_usage = &dev->states_usage[i];
@@ -123,7 +123,6 @@ static int msm_cpuidle_enter(
 			break;
 		}
 	}
-	trace_cpu_idle_rcuidle(PWR_EVENT_EXIT, dev->cpu);
 
 #ifdef CONFIG_CPU_PM
 	cpu_pm_exit();

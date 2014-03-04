@@ -44,5 +44,4 @@ struct htc_35mm_1wire_info {
 	struct htc_headset_1wire_platform_data pdata;
 	char aid;
 	struct wake_lock hs_wake_lock;
-	struct mutex mutex_lock;
 };
