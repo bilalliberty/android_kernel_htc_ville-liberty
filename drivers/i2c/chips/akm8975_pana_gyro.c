@@ -384,9 +384,6 @@ static int AKECS_GetOpenStatus(void)
 	D("%s:\n", __func__);
 	wait_event_interruptible(open_wq, (atomic_read(&open_flag) != 0));
 	
-	if (pdata->power_LPM)
-		pdata->power_LPM(0);
-
 	return atomic_read(&open_flag);
 }
 
@@ -394,10 +391,6 @@ static int AKECS_GetCloseStatus(void)
 {
 	D("%s:\n", __func__);
 	wait_event_interruptible(open_wq, (atomic_read(&open_flag) <= 0));
-
-	if (pdata->power_LPM)
-		pdata->power_LPM(1);
-
 	return atomic_read(&open_flag);
 }
 

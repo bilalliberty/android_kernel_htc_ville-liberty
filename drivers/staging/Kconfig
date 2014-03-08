@@ -24,8 +24,6 @@ menuconfig STAGING
 
 if STAGING
 
-source "drivers/staging/prima/Kconfig"
-
 source "drivers/staging/serial/Kconfig"
 
 source "drivers/staging/et131x/Kconfig"
