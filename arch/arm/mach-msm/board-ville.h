@@ -267,8 +267,8 @@ extern struct regulator_init_data msm_saw_regulator_pdata_s6;
 
 extern struct rpm_regulator_platform_data msm_rpm_regulator_pdata __devinitdata;
 
-void ville_init_fb(void);
-void __init msm8960_allocate_fb_region(void);
+void msm8960_init_fb(void);
+void ville_allocate_fb_regions(void);
 void msm8960_init_mmc(void);
 
 int __init ville_init_keypad(void);
@@ -276,5 +276,4 @@ int __init ville_gpiomux_init(void);
 
 extern struct msm_camera_board_info ville_camera_board_info;
 void msm8960_init_cam(void);
-void m7_init_gpu(void);
 #endif

@@ -4023,7 +4023,7 @@ static void __init ville_allocate_memory_regions(void)
 	if (mem_size_mb == 64){ 
 		return;
 	}
-	msm8960_allocate_fb_region();
+	ville_allocate_fb_regions();
 }
 
 static void __init ville_init(void)
@@ -4095,7 +4095,7 @@ static void __init ville_init(void)
 	register_i2c_devices();
 	
 
-		ville_init_fb();
+		msm8960_init_fb();
 	
 
 	slim_register_board_info(msm_slim_devices,
