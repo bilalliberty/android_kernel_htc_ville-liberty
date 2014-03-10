@@ -157,7 +157,6 @@ struct cm3629_platform_data {
 	int model;
 	int intr;
 	uint16_t levels[10];
-	uint16_t correction[10];
 	uint16_t golden_adc;
 	int (*power)(int, uint8_t); 
 	int (*lpm_power)(uint8_t); 

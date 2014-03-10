@@ -40,6 +40,10 @@
 #include <linux/switch.h>
 #include <linux/msm_mdp.h>
 
+#ifdef CONFIG_HAS_EARLYSUSPEND
+#include <linux/earlysuspend.h>
+#endif
+
 #include "msm_fb_panel.h"
 #include "mdp.h"
 
@@ -164,13 +168,14 @@ struct msm_fb_data_type {
 	struct dentry *sub_dir;
 #endif
 
-#ifndef DISABLE_EARLY_SUSPEND
 #ifdef CONFIG_HAS_EARLYSUSPEND
 	struct early_suspend early_suspend;
+#ifdef CONFIG_HTC_ONMODE_CHARGING
+	struct early_suspend onchg_suspend;
+#endif
 #ifdef CONFIG_FB_MSM_MDDI
 	struct early_suspend mddi_early_suspend;
 	struct early_suspend mddi_ext_early_suspend;
-#endif
 #endif
 #endif
 	u32 mdp_fb_page_protection;

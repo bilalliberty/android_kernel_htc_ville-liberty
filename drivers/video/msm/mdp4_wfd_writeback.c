@@ -47,9 +47,6 @@ static int writeback_probe(struct platform_device *pdev)
 	mdp_dev = platform_device_alloc("mdp", pdev->id);
 	if (!mdp_dev)
 		return -ENOMEM;
-	/*
-	 * link to the latest pdev
-	 */
 	mfd->pdev = mdp_dev;
 	mfd->dest = DISPLAY_LCD;
 
@@ -66,9 +63,6 @@ static int writeback_probe(struct platform_device *pdev)
 	pdata->off = writeback_off;
 	pdata->next = pdev;
 
-	/*
-	 * get/set panel specific fb info
-	 */
 	mfd->panel_info = pdata->panel_info;
 
 	mfd->fb_imgType = MDP_RGB_565;

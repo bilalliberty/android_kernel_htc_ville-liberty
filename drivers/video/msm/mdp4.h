@@ -296,8 +296,10 @@ struct mdp4_overlay_pipe {
 	uint32 mixer_num;		/* which mixer used */
 	uint32 mixer_stage;		/* which stage of mixer used */
 	uint32 src_format;
-	uint32 src_width;	/* source img width */
-	uint32 src_height;	/* source img height */
+	uint32 src_width;	
+	uint32 src_height;	
+	uint32 prev_src_width;	
+	uint32 prev_src_height;	
 	uint32 is_3d;
 	uint32 src_width_3d;	/* source img width */
 	uint32 src_height_3d;	/* source img height */
@@ -309,6 +311,7 @@ struct mdp4_overlay_pipe {
 	uint32 dst_h;		/* roi */
 	uint32 dst_x;		/* roi */
 	uint32 dst_y;		/* roi */
+	uint32 dst_format;
 	uint32 flags;
 	uint32 op_mode;
 	uint32 transp;
@@ -928,6 +931,8 @@ void mdp4_writeback_dma_stop(struct msm_fb_data_type *mfd);
 int mdp4_writeback_init(struct fb_info *info);
 int mdp4_writeback_terminate(struct fb_info *info);
 int mdp4_writeback_set_mirroring_hint(struct fb_info *info, int hint);
+int mdp4_writeback_play(struct fb_info *info, struct msmfb_overlay_data *req);
+void mdp4_writeback_play_kickoff(struct msm_fb_data_type *mfd, struct mdp4_overlay_pipe *pipe);
 
 uint32_t mdp_block2base(uint32_t block);
 int mdp_hist_lut_config(struct mdp_hist_lut_data *data);
