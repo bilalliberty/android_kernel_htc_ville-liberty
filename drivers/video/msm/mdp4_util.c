@@ -2621,14 +2621,16 @@ int mdp4_pcc_cfg(struct mdp_pcc_cfg_data *cfg_ptr)
 		break;
 	}
 
-	if (0x8 & cfg_ptr->ops)
+	if ((0x8 & cfg_ptr->ops) && (mdp_dma_op_mode != 0))
 		outpdw(mdp_dma_op_mode,
 			((inpdw(mdp_dma_op_mode) & ~(0x1<<10)) |
 						((0x8 & cfg_ptr->ops)<<10)));
-
-	outpdw(mdp_cfg_offset,
+	if (mdp_cfg_offset)
+		outpdw(mdp_cfg_offset,
 			((inpdw(mdp_cfg_offset) & ~(0x1<<29)) |
 						((cfg_ptr->ops & 0x1)<<29)));
+	else
+		return -EINVAL;
 
 	mdp_pipe_ctrl(MDP_CMD_BLOCK, MDP_BLOCK_POWER_OFF, FALSE);
 

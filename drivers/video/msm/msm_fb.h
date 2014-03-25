@@ -50,8 +50,6 @@
 #define MSM_FB_DEFAULT_PAGE_SIZE 2
 #define MFD_KEY  0x11161126
 #define MSM_FB_MAX_DEV_LIST 32
-/* Disable EARLYSUSPEND for mdp driver */
-#define DISABLE_EARLY_SUSPEND
 
 struct disp_info_type_suspend {
 	boolean op_enable;
@@ -80,18 +78,19 @@ struct msm_fb_data_type {
 
 	panel_id_type panel;
 	struct msm_panel_info panel_info;
-	int init_mipi_lcd;
 
 	DISP_TARGET dest;
 	struct fb_info *fbi;
 
 	struct device *dev;
 	boolean op_enable;
-	struct delayed_work backlight_worker;
 	uint32 fb_imgType;
 	boolean sw_currently_refreshing;
 	boolean sw_refreshing_enable;
 	boolean hw_refresh;
+	
+	boolean init_mipi_lcd;
+	
 #ifdef CONFIG_FB_MSM_OVERLAY
 	int overlay_play_enable;
 #endif
@@ -104,7 +103,7 @@ struct msm_fb_data_type {
 	boolean pan_waiting;
 	struct completion pan_comp;
 
-	/* vsync */
+	
 	boolean use_mdp_vsync;
 	__u32 vsync_gpio;
 	__u32 total_lcd_lines;
@@ -215,14 +214,9 @@ struct msm_fb_data_type {
 	u32 last_acq_fen_cnt;
 	struct sync_fence *last_acq_fen[MDP_MAX_FENCE_FD];
 	struct mutex sync_mutex;
-	struct mutex queue_mutex;
 	struct completion commit_comp;
 	u32 is_committing;
-	atomic_t commit_cnt;
-	struct task_struct *commit_thread;
 	struct work_struct commit_work;
-	wait_queue_head_t commit_queue;
-	int wake_commit_thread;
 	void *msm_fb_backup;
 	boolean panel_driver_on;
 	int vsync_sysfs_created;
@@ -230,7 +224,7 @@ struct msm_fb_data_type {
 	unsigned char *copy_splash_phys;
 	uint32 sec_mapped;
 	uint32 sec_active;
-	uint32 max_map_size;
+	
 	struct workqueue_struct *dimming_wq;
 	struct work_struct dimming_work;
 	struct timer_list dimming_update_timer;
@@ -263,7 +257,7 @@ int calc_fb_offset(struct msm_fb_data_type *mfd, struct fb_info *fbi, int bpp);
 void msm_fb_wait_for_fence(struct msm_fb_data_type *mfd);
 int msm_fb_signal_timeline(struct msm_fb_data_type *mfd);
 void msm_fb_release_timeline(struct msm_fb_data_type *mfd);
-void msm_fb_release_busy(struct msm_fb_data_type *mfd);
+void mdp_color_enhancement(const struct mdp_reg *reg_seq, int size);
 int msm_fb_mixer_pan_idle(DISP_TARGET_PHYS pdest);
 
 #ifdef CONFIG_FB_BACKLIGHT

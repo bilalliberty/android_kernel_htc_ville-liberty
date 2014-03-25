@@ -43,6 +43,7 @@
 #include <linux/leds.h>
 #include <linux/pm_runtime.h>
 #include <linux/sync.h>
+#include <linux/minifb.h>
 #include <linux/sw_sync.h>
 #include <linux/file.h>
 
@@ -145,7 +146,6 @@ static int mem_mapped = 0;
 char *get_fb_addr(void)
 {
 	int i;
-
 	if (!usb_pjt_info.latest_offset) {
 		printk(KERN_WARNING "%s: wrong address sent via ioctl?\n", __func__);
 		return 0;
@@ -2600,13 +2600,6 @@ static int msm_fb_pan_display_sub(struct fb_var_screeninfo *var,
 	return 0;
 }
 
-void msm_fb_release_busy(struct msm_fb_data_type *mfd)
-{
-	mutex_lock(&mfd->sync_mutex);
-	mfd->is_committing = 0;
-	complete_all(&mfd->commit_comp);
-	mutex_unlock(&mfd->sync_mutex);
-}
 static void msm_fb_commit_wq_handler(struct work_struct *work)
 {
 	struct msm_fb_data_type *mfd;
@@ -2628,7 +2621,6 @@ static void msm_fb_commit_wq_handler(struct work_struct *work)
 	{
 		var = &fb_backup->disp_commit.var;
 		msm_fb_pan_display_sub(var, info);
-		msm_fb_release_busy(mfd);
 	}
 
 	if (mfd->request_display_on) {
@@ -4631,6 +4623,19 @@ static int msm_fb_ioctl(struct fb_info *info, unsigned int cmd,
 
 	case MSMFB_DISPLAY_COMMIT:
 		ret = msmfb_display_commit(info, argp);
+		break;
+
+	case MSMFB_USBFB_INIT:
+		ret = minifb_ioctl_handler(MINIFB_INIT, argp);
+		break;
+	case MSMFB_USBFB_TERMINATE:
+		ret = minifb_ioctl_handler(MINIFB_TERMINATE, argp);
+		break;
+	case MSMFB_USBFB_QUEUE_BUFFER:
+		ret = minifb_ioctl_handler(MINIFB_QUEUE_BUFFER, argp);
+		break;
+	case MSMFB_USBFB_DEQUEUE_BUFFER:
+		ret = minifb_ioctl_handler(MINIFB_DEQUEUE_BUFFER, argp);
 		break;
 
 	case MSMFB_METADATA_GET:

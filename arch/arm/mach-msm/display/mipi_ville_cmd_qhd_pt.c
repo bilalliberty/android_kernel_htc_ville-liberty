@@ -37,7 +37,6 @@ static int __init mipi_cmd_ville_qhd_pt_init(void)
 
 	pinfo.width = 49;
 	pinfo.height = 87;
-	pinfo.camera_backlight = 135;
 
 	pinfo.lcdc.h_back_porch = 64;
 	pinfo.lcdc.h_front_porch = 96;
@@ -50,11 +49,6 @@ static int __init mipi_cmd_ville_qhd_pt_init(void)
 	pinfo.lcd.v_front_porch = 16;
 	pinfo.lcd.v_pulse_width = 4;
 
-	pinfo.lcd.primary_vsync_init = pinfo.yres;
-	pinfo.lcd.primary_rdptr_irq = 0;
-	pinfo.lcd.primary_start_pos = pinfo.yres +
-		pinfo.lcd.v_back_porch + pinfo.lcd.v_front_porch - 1;
-
 	pinfo.lcdc.border_clr = 0;	/* blk */
 	pinfo.lcdc.underflow_clr = 0xff;	/* blue */
 	pinfo.lcdc.hsync_skew = 0;
@@ -64,17 +58,16 @@ static int __init mipi_cmd_ville_qhd_pt_init(void)
 	pinfo.clk_rate = 482000000;
 	pinfo.lcd.vsync_enable = TRUE;
 	pinfo.lcd.hw_vsync_mode = TRUE;
-	pinfo.lcd.refx100 = 6096; 
+	pinfo.lcd.refx100 = 6180; 
 
 	pinfo.mipi.mode = DSI_CMD_MODE;
 	pinfo.mipi.dst_format = DSI_CMD_DST_FORMAT_RGB888;
 	pinfo.mipi.vc = 0;
-	pinfo.mipi.rgb_swap = DSI_RGB_SWAP_RGB;
+
 	pinfo.mipi.data_lane0 = TRUE;
 	pinfo.mipi.data_lane1 = TRUE;
-	pinfo.mipi.frame_rate = 60;
-	pinfo.mipi.t_clk_post = 0x0a;
-	pinfo.mipi.t_clk_pre = 0x20;
+	pinfo.mipi.t_clk_post = 0x3;
+	pinfo.mipi.t_clk_pre = 0x2B;
 	pinfo.mipi.stream = 0;	/* dma_p */
 	pinfo.mipi.mdp_trigger = DSI_CMD_TRIGGER_NONE;
 	pinfo.mipi.dma_trigger = DSI_CMD_TRIGGER_SW;
@@ -83,9 +76,10 @@ static int __init mipi_cmd_ville_qhd_pt_init(void)
 	pinfo.mipi.insert_dcs_cmd = TRUE;
 	pinfo.mipi.wr_mem_continue = 0x3c;
 	pinfo.mipi.wr_mem_start = 0x2c;
-
+	pinfo.mipi.frame_rate = 60;
 	pinfo.mipi.dsi_phy_db = &dsi_cmd_mode_phy_db;
-	
+	pinfo.mipi.esc_byte_ratio = 5;
+
 	ret = mipi_ville_device_register(&pinfo, MIPI_DSI_PRIM,
 						MIPI_DSI_PANEL_QHD_PT);
 	if (ret)
@@ -93,6 +87,5 @@ static int __init mipi_cmd_ville_qhd_pt_init(void)
 
 	return ret;
 }
-    
 
 late_initcall(mipi_cmd_ville_qhd_pt_init);

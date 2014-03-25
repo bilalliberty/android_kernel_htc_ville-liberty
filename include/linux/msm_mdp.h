@@ -17,6 +17,7 @@
 
 #include <linux/types.h>
 #include <linux/fb.h>
+#include <linux/minifb.h>
 
 #define MSMFB_IOCTL_MAGIC 'm'
 #define MSMFB_GRP_DISP          _IOW(MSMFB_IOCTL_MAGIC, 1, unsigned int)
@@ -26,7 +27,6 @@
 #define MSMFB_CURSOR _IOW(MSMFB_IOCTL_MAGIC, 130, struct fb_cursor)
 #define MSMFB_SET_LUT _IOW(MSMFB_IOCTL_MAGIC, 131, struct fb_cmap)
 #define MSMFB_HISTOGRAM _IOWR(MSMFB_IOCTL_MAGIC, 132, struct mdp_histogram_data)
-/* new ioctls's for set/get ccs matrix */
 #define MSMFB_GET_CCS_MATRIX  _IOWR(MSMFB_IOCTL_MAGIC, 133, struct mdp_ccs)
 #define MSMFB_SET_CCS_MATRIX  _IOW(MSMFB_IOCTL_MAGIC, 134, struct mdp_ccs)
 #define MSMFB_OVERLAY_SET       _IOWR(MSMFB_IOCTL_MAGIC, 135, \
@@ -82,6 +82,10 @@
 #define MSMFB_SET_USB_PROJECTOR_INFO _IOW(MSMFB_IOCTL_MAGIC, 202, struct msmfb_usb_projector_info)
 #define MSMFB_SET_DISP_PROJECTOR_INFO _IOW(MSMFB_IOCTL_MAGIC, 203, struct msmfb_disp_projector_info)
 
+#define MSMFB_USBFB_INIT _IOW(MSMFB_IOCTL_MAGIC, 304, struct minifb_session)
+#define MSMFB_USBFB_TERMINATE _IOW(MSMFB_IOCTL_MAGIC, 305, struct minifb_session)
+#define MSMFB_USBFB_QUEUE_BUFFER _IOW(MSMFB_IOCTL_MAGIC, 306, struct minifb_req)
+#define MSMFB_USBFB_DEQUEUE_BUFFER _IOW(MSMFB_IOCTL_MAGIC, 307, struct minifb_req)
 
 #define FB_TYPE_3D_PANEL 0x10101010
 #define MDP_IMGTYPE2_START 0x10000
@@ -106,36 +110,36 @@ enum {
 };
 
 enum {
-	MDP_RGB_565,      /* RGB 565 planer */
-	MDP_XRGB_8888,    /* RGB 888 padded */
-	MDP_Y_CBCR_H2V2,  /* Y and CbCr, pseudo planer w/ Cb is in MSB */
+	MDP_RGB_565,      
+	MDP_XRGB_8888,    
+	MDP_Y_CBCR_H2V2,  
 	MDP_Y_CBCR_H2V2_ADRENO,
-	MDP_ARGB_8888,    /* ARGB 888 */
-	MDP_RGB_888,      /* RGB 888 planer */
-	MDP_Y_CRCB_H2V2,  /* Y and CrCb, pseudo planer w/ Cr is in MSB */
-	MDP_YCBYCR_H2V1,  /* YCbYCr interleave */
-	MDP_YCRYCB_H2V1,  /* YCrYCb interleave */
-	MDP_Y_CRCB_H2V1,  /* Y and CrCb, pseduo planer w/ Cr is in MSB */
-	MDP_Y_CBCR_H2V1,   /* Y and CrCb, pseduo planer w/ Cr is in MSB */
+	MDP_ARGB_8888,    
+	MDP_RGB_888,      
+	MDP_Y_CRCB_H2V2,  
+	MDP_YCBYCR_H2V1,  
+	MDP_YCRYCB_H2V1,  
+	MDP_Y_CRCB_H2V1,  
+	MDP_Y_CBCR_H2V1,   
 	MDP_Y_CRCB_H1V2,
 	MDP_Y_CBCR_H1V2,
-	MDP_RGBA_8888,    /* ARGB 888 */
-	MDP_BGRA_8888,	  /* ABGR 888 */
-	MDP_RGBX_8888,	  /* RGBX 888 */
-	MDP_Y_CRCB_H2V2_TILE,  /* Y and CrCb, pseudo planer tile */
-	MDP_Y_CBCR_H2V2_TILE,  /* Y and CbCr, pseudo planer tile */
-	MDP_Y_CR_CB_H2V2,  /* Y, Cr and Cb, planar */
-	MDP_Y_CR_CB_GH2V2,  /* Y, Cr and Cb, planar aligned to Android YV12 */
-	MDP_Y_CB_CR_H2V2,  /* Y, Cb and Cr, planar */
-	MDP_Y_CRCB_H1V1,  /* Y and CrCb, pseduo planer w/ Cr is in MSB */
-	MDP_Y_CBCR_H1V1,  /* Y and CbCr, pseduo planer w/ Cb is in MSB */
-	MDP_YCRCB_H1V1,   /* YCrCb interleave */
-	MDP_YCBCR_H1V1,   /* YCbCr interleave */
-	MDP_BGR_565,      /* BGR 565 planer */
+	MDP_RGBA_8888,    
+	MDP_BGRA_8888,	  
+	MDP_RGBX_8888,	  
+	MDP_Y_CRCB_H2V2_TILE,  
+	MDP_Y_CBCR_H2V2_TILE,  
+	MDP_Y_CR_CB_H2V2,  
+	MDP_Y_CR_CB_GH2V2,  
+	MDP_Y_CB_CR_H2V2,  
+	MDP_Y_CRCB_H1V1,  
+	MDP_Y_CBCR_H1V1,  
+	MDP_YCRCB_H1V1,   
+	MDP_YCBCR_H1V1,   
+	MDP_BGR_565,      
 	MDP_IMGTYPE_LIMIT,
-	MDP_RGB_BORDERFILL,	/* border fill pipe */
-	MDP_FB_FORMAT = MDP_IMGTYPE2_START,    /* framebuffer format */
-	MDP_IMGTYPE_LIMIT2 /* Non valid image type after this enum */
+	MDP_RGB_BORDERFILL,	
+	MDP_FB_FORMAT = MDP_IMGTYPE2_START,    
+	MDP_IMGTYPE_LIMIT2 
 };
 
 enum {
@@ -154,7 +158,6 @@ enum {
 #define MDSS_MDP_ROT_ONLY		0x80
 #define MDSS_MDP_RIGHT_MIXER		0x100
 
-/* mdp_blit_req flag values */
 #define MDP_ROT_NOP 0
 #define MDP_FLIP_LR 0x1
 #define MDP_FLIP_UD 0x2
@@ -179,7 +182,11 @@ enum {
 #define MDP_DEINTERLACE_ODD		0x00400000
 #define MDP_OV_PLAY_NOWAIT		0x00200000
 #define MDP_SOURCE_ROTATED_90		0x00100000
+#ifdef CONFIG_FB_MSM_412
+#define MDP_DPP_HSIC			0x00080000
+#else
 #define MDP_OVERLAY_PP_CFG_EN		0x00080000
+#endif
 #define MDP_BACKEND_COMPOSITION		0x00040000
 #define MDP_BORDERFILL_SUPPORTED	0x00010000
 #define MDP_SECURE_OVERLAY_SESSION      0x00008000
@@ -193,9 +200,7 @@ enum {
 #define MDP_FB_PAGE_PROTECTION_WRITETHROUGHCACHE (2)
 #define MDP_FB_PAGE_PROTECTION_WRITEBACKCACHE    (3)
 #define MDP_FB_PAGE_PROTECTION_WRITEBACKWACACHE  (4)
-/* Sentinel: Don't use! */
 #define MDP_FB_PAGE_PROTECTION_INVALID           (5)
-/* Count of the number of MDP_FB_PAGE_PROTECTION_... values. */
 #define MDP_NUM_FB_PAGE_PROTECTION_VALUES        (5)
 
 struct mdp_rect {
@@ -210,13 +215,10 @@ struct mdp_img {
 	uint32_t height;
 	uint32_t format;
 	uint32_t offset;
-	int memory_id;		/* the file descriptor */
+	int memory_id;		
 	uint32_t priv;
 };
 
-/*
- * {3x3} + {3} ccs matrix
- */
 
 #define MDP_CCS_RGB2YUV 	0
 #define MDP_CCS_YUV2RGB 	1
@@ -225,9 +227,9 @@ struct mdp_img {
 #define MDP_BV_SIZE	3
 
 struct mdp_ccs {
-	int direction;			/* MDP_CCS_RGB2YUV or YUV2RGB */
-	uint16_t ccs[MDP_CCS_SIZE];	/* 3x3 color coefficients */
-	uint16_t bv[MDP_BV_SIZE];	/* 1x3 bias vector */
+	int direction;			
+	uint16_t ccs[MDP_CCS_SIZE];	
+	uint16_t bv[MDP_BV_SIZE];	
 };
 
 struct mdp_csc {
@@ -239,10 +241,6 @@ struct mdp_csc {
 	uint32_t csc_post_lv[6];
 };
 
-/* The version of the mdp_blit_req structure so that
- * user applications can selectively decide which functionality
- * to include
- */
 
 #define MDP_BLIT_REQ_VERSION 2
 
@@ -254,7 +252,7 @@ struct mdp_blit_req {
 	uint32_t alpha;
 	uint32_t transp_mask;
 	uint32_t flags;
-	int sharpening_strength;  /* -127 <--> 127, default 64 */
+	int sharpening_strength;  
 };
 
 struct mdp_blit_req_list {
@@ -296,6 +294,12 @@ struct msmfb_writeback_data {
 	struct msmfb_img img;
 };
 
+#ifdef CONFIG_FB_MSM_412
+struct dpp_ctrl {
+	int8_t sharp_strength;
+	int8_t hsic_params[NUM_HSIC_PARAM];
+};
+#else
 #define MDP_PP_OPS_ENABLE 0x1
 #define MDP_PP_OPS_READ 0x2
 #define MDP_PP_OPS_WRITE 0x4
@@ -332,7 +336,7 @@ struct mdp_sharp_cfg {
 #define MDP_CSC_FLAG_YUV_OUT	0x4
 
 struct mdp_csc_cfg {
-	/* flags for enable CSC, toggling RGB,YUV input/output */
+	
 	uint32_t flags;
 	uint32_t csc_mv[9];
 	uint32_t csc_pre_bv[3];
@@ -377,19 +381,29 @@ enum {
 	BLEND_OP_COVERAGE,
 	BLEND_OP_MAX,
 };
+#endif
 
-struct dpp_ctrl {
-	int8_t sharp_strength;
-	int8_t hsic_params[NUM_HSIC_PARAM];
-};
-
-
+#ifdef CONFIG_FB_MSM_412
 struct mdp_overlay {
 	struct msmfb_img src;
 	struct mdp_rect src_rect;
 	struct mdp_rect dst_rect;
-	uint32_t z_order;	/* stage number */
-	uint32_t is_fg;		/* control alpha & transp */
+	uint32_t z_order;	
+	uint32_t is_fg;		
+	uint32_t alpha;
+	uint32_t transp_mask;
+	uint32_t flags;
+	uint32_t id;
+	uint32_t user_data[8];
+	struct dpp_ctrl dpp;
+};
+#else
+struct mdp_overlay {
+	struct msmfb_img src;
+	struct mdp_rect src_rect;
+	struct mdp_rect dst_rect;
+	uint32_t z_order;	
+	uint32_t is_fg;		
 	uint32_t alpha;
 	uint32_t transp_mask;
 	uint32_t blend_op;
@@ -398,6 +412,7 @@ struct mdp_overlay {
 	uint32_t user_data[8];
 	struct mdp_overlay_pp_params overlay_pp_cfg;
 };
+#endif
 
 struct msmfb_overlay_3d {
 	uint32_t is_3d;
@@ -423,18 +438,6 @@ struct mdp_histogram {
 };
 
 
-/*
-
-	mdp_block_type defines the identifiers for pipes in MDP 4.3 and up
-
-	MDP_BLOCK_RESERVED is provided for backward compatibility and is
-	deprecated. It corresponds to DMA_P. So MDP_BLOCK_DMA_P should be used
-	instead.
-
-	MDP_LOGICAL_BLOCK_DISP_0 identifies the display pipe which fb0 uses,
-	same for others.
-
-*/
 
 enum {
 	MDP_BLOCK_RESERVED = 0,
@@ -454,10 +457,6 @@ enum {
 	MDP_BLOCK_MAX,
 };
 
-/*
- * mdp_histogram_start_req is used to provide the parameters for
- * histogram start request
- */
 
 struct mdp_histogram_start_req {
 	uint32_t block;
@@ -466,10 +465,6 @@ struct mdp_histogram_start_req {
 	uint8_t num_bins;
 };
 
-/*
- * mdp_histogram_data is used to return the histogram data, once
- * the histogram is done/stopped/cance
- */
 
 struct mdp_histogram_data {
 	uint32_t block;
@@ -490,12 +485,42 @@ struct mdp_pcc_cfg_data {
 	struct mdp_pcc_coeff r, g, b;
 };
 
+#ifdef CONFIG_FB_MSM_412
+#define MDP_CSC_FLAG_ENABLE	0x1
+#define MDP_CSC_FLAG_YUV_IN	0x2
+#define MDP_CSC_FLAG_YUV_OUT	0x4
+
+struct mdp_csc_cfg {
+	
+	uint32_t flags;
+	uint32_t csc_mv[9];
+	uint32_t csc_pre_bv[3];
+	uint32_t csc_post_bv[3];
+	uint32_t csc_pre_lv[6];
+	uint32_t csc_post_lv[6];
+};
+
+struct mdp_csc_cfg_data {
+	uint32_t block;
+	struct mdp_csc_cfg csc_data;
+};
+#endif
+
 enum {
 	mdp_lut_igc,
 	mdp_lut_pgc,
 	mdp_lut_hist,
 	mdp_lut_max,
 };
+
+#ifdef CONFIG_FB_MSM_412
+struct mdp_igc_lut_data {
+	uint32_t block;
+	uint32_t len, ops;
+	uint32_t *c0_c1_data;
+	uint32_t *c2_data;
+};
+#endif
 
 struct mdp_ar_gc_lut_data {
 	uint32_t x_start;
@@ -531,6 +556,20 @@ struct mdp_lut_cfg_data {
 	} data;
 };
 
+#ifdef CONFIG_FB_MSM_412
+struct mdp_qseed_cfg_data {
+	uint32_t block;
+	uint32_t table_num;
+	uint32_t ops;
+	uint32_t len;
+	uint32_t *data;
+};
+
+struct mdp_bl_scale_data {
+       uint32_t min_lvl;
+       uint32_t scale;
+};
+#else
 struct mdp_bl_scale_data {
 	uint32_t min_lvl;
 	uint32_t scale;
@@ -546,6 +585,7 @@ struct mdp_pa_cfg_data {
 	uint32_t block;
 	struct mdp_pa_cfg pa_data;
 };
+#endif
 
 enum {
 	mdp_op_pcc_cfg,
@@ -558,6 +598,19 @@ enum {
 	mdp_op_max,
 };
 
+
+#ifdef CONFIG_FB_MSM_412
+struct msmfb_mdp_pp {
+	uint32_t op;
+	union {
+		struct mdp_pcc_cfg_data pcc_cfg_data;
+		struct mdp_csc_cfg_data csc_cfg_data;
+		struct mdp_lut_cfg_data lut_cfg_data;
+		struct mdp_qseed_cfg_data qseed_cfg_data;
+		struct mdp_bl_scale_data bl_scale_data;
+	} data;
+};
+#else
 struct msmfb_mdp_pp {
 	uint32_t op;
 	union {
@@ -570,6 +623,7 @@ struct msmfb_mdp_pp {
 		struct mdp_pa_cfg_data pa_cfg_data;
 	} data;
 };
+#endif
 
 enum {
 	metadata_op_none,
@@ -599,7 +653,13 @@ struct mdp_buf_sync {
 	uint32_t acq_fen_fd_cnt;
 	int *acq_fen_fd;
 	int *rel_fen_fd;
-	int *retire_fen_fd;
+};
+
+struct mdp_buf_fence {
+	uint32_t flags;
+	uint32_t acq_fen_fd_cnt;
+	int acq_fen_fd[MDP_MAX_FENCE_FD];
+	int rel_fen_fd[MDP_MAX_FENCE_FD];
 };
 
 #define MDP_DISPLAY_COMMIT_OVERLAY 0x00000001
@@ -645,7 +705,6 @@ enum {
 
 #ifdef __KERNEL__
 
-/* get the framebuffer physical address information */
 int get_fb_phys_info(unsigned long *start, unsigned long *len, int fb_num,
 	int subsys_id);
 struct fb_info *msm_fb_get_writeback_fb(void);
@@ -659,4 +718,4 @@ int msm_fb_writeback_stop(struct fb_info *info);
 int msm_fb_writeback_terminate(struct fb_info *info);
 #endif
 
-#endif /*_MSM_MDP_H_*/
+#endif 

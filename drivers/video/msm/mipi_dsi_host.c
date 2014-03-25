@@ -57,6 +57,7 @@ static struct mutex clk_mutex;
 
 static struct list_head pre_kickoff_list;
 static struct list_head post_kickoff_list;
+struct work_struct mdp_reset_work;
 
 enum {
 	STAT_DSI_START,
@@ -94,6 +95,11 @@ void mipi_dsi_mdp_stat_inc(int which)
 }
 #endif
 
+static void mdp_reset_wq_handler(struct work_struct *work)
+{
+	mdp4_mixer_reset(0);
+}
+
 void mipi_dsi_init(void)
 {
 	init_completion(&dsi_dma_comp);
@@ -106,6 +112,7 @@ void mipi_dsi_init(void)
 	spin_lock_init(&dsi_clk_lock);
 	mutex_init(&cmd_mutex);
 	mutex_init(&clk_mutex);
+	INIT_WORK(&mdp_reset_work, mdp_reset_wq_handler);
 
 	INIT_LIST_HEAD(&pre_kickoff_list);
 	INIT_LIST_HEAD(&post_kickoff_list);
@@ -1273,6 +1280,14 @@ int mipi_dsi_cmds_rx_new(struct dsi_buf *tp, struct dsi_buf *rp,
 	struct dsi_cmd_desc *cmds;
 	int cnt, len, diff, pkt_size;
 	char cmd;
+#ifdef CONFIG_FB_MSM_ESD_WORKAROUND
+	uint32 dsi_ctrl = 0x0;
+
+	if (video_mode) {
+		dsi_ctrl = MIPI_INP(MIPI_DSI_BASE + 0x0000);
+		MIPI_OUTP(MIPI_DSI_BASE + 0x0000, dsi_ctrl | 0x04); 
+	}
+#endif
 
 	if (req->flags & CMD_REQ_NO_MAX_PKT_SIZE) {
 		
@@ -1349,6 +1364,11 @@ int mipi_dsi_cmds_rx_new(struct dsi_buf *tp, struct dsi_buf *rp,
 	default:
 		break;
 	}
+
+#ifdef CONFIG_FB_MSM_ESD_WORKAROUND
+	if (video_mode)
+		MIPI_OUTP(MIPI_DSI_BASE + 0x0000, dsi_ctrl); 
+#endif
 
 	return rp->len;
 }
@@ -1658,7 +1678,7 @@ void mipi_dsi_fifo_status(void)
 		MIPI_OUTP(MIPI_DSI_BASE + 0x0008, status);
 		pr_err("%s: Error: status=%x\n", __func__, status);
 		mipi_dsi_sw_reset();
-		mdp4_mixer_reset(0);
+		schedule_work(&mdp_reset_work);
 	}
 }
 

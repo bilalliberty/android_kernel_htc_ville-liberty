@@ -43,6 +43,8 @@ static int enable_riva_ssr = 1;
 static int enable_riva_ssr = 0;
 #endif
 
+extern void wcnss_flush_delayed_boot_votes(void);
+
 static void smsm_state_cb_hdlr(void *data, uint32_t old_state,
 					uint32_t new_state)
 {
@@ -160,6 +162,9 @@ static int riva_shutdown(const struct subsys_data *subsys)
 {
 	pil_force_shutdown("wcnss");
 	flush_delayed_work(&cancel_vote_work);
+
+	pr_err("[SSR] wcnss_flush_delayed_boot_votes");
+	wcnss_flush_delayed_boot_votes();
 	disable_irq_nosync(RIVA_APSS_WDOG_BITE_RESET_RDY_IRQ);
 
 	return 0;
@@ -185,8 +190,8 @@ static int riva_powerup(const struct subsys_data *subsys)
 	return ret;
 }
 
-static struct ramdump_segment riva_segments[] = {{0x8f200000,
-						0x8f500000 - 0x8f200000} };
+static struct ramdump_segment riva_segments[] = {{0x8f000000,
+						0x8f700000 - 0x8f000000} };
 
 static int riva_ramdump(int enable, const struct subsys_data *subsys)
 {

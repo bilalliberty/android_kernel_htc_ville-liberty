@@ -45,7 +45,7 @@
 #include "mipi_dsi.h"
 
 uint32 mdp4_extn_disp;
-u32 mdp_iommu_max_map_size;
+
 static struct clk *mdp_clk;
 static struct clk *mdp_pclk;
 static struct clk *mdp_lut_clk;
@@ -1612,6 +1612,8 @@ void mdp_disable_irq_nosync(uint32 term)
 				__func__, term, mdp_irq_mask, mdp_irq_enabled);
 		printk(KERN_ERR "%s: display_status %lu, mdp_interrupt_status 0x%x,mdp_intr_en 0x%x",
 			__func__, mdp4_display_status(), inp32(MDP_INTR_STATUS), inp32(MDP_INTR_ENABLE));
+		
+		mdp4_sw_reset(0x17);
 	} else {
 		mdp_irq_mask &= ~term;
 		if (!mdp_irq_mask && mdp_irq_enabled) {
@@ -2693,6 +2695,43 @@ static int mdp_irq_clk_setup(struct platform_device *pdev,
 	return 0;
 }
 
+static int
+mdp_write_reg_mask(uint32_t reg, uint32_t val, uint32_t mask)
+{
+        uint32_t oldval, newval;
+
+        oldval = inpdw(MDP_BASE + reg);
+
+        oldval &= (~mask);
+        val &= mask;
+        newval = oldval | val;
+
+        outpdw(MDP_BASE + reg, newval);
+
+        return 0;
+
+}
+
+void mdp_color_enhancement(const struct mdp_reg *reg_seq, int size)
+{
+        int i;
+
+        printk(KERN_INFO "%s\n", __func__);
+
+	mdp_clk_ctrl(1);
+	mdp_pipe_ctrl(MDP_CMD_BLOCK, MDP_BLOCK_POWER_ON, FALSE);
+        for (i = 0; i < size; i++) {
+                if (reg_seq[i].mask == 0x0)
+                        outpdw(MDP_BASE + reg_seq[i].reg, reg_seq[i].val);
+                else
+                        mdp_write_reg_mask(reg_seq[i].reg, reg_seq[i].val, reg_seq[i].mask);
+        }
+	mdp_pipe_ctrl(MDP_CMD_BLOCK, MDP_BLOCK_POWER_OFF, FALSE);
+	mdp_clk_ctrl(0);
+
+        return ;
+}
+
 static int mdp_probe(struct platform_device *pdev)
 {
 	struct platform_device *msm_fb_dev = NULL;
@@ -2798,6 +2837,9 @@ static int mdp_probe(struct platform_device *pdev)
 		mfd->ov1_wb_buf->size = 0;
 		mfd->mem_hid = 0;
 	}
+
+	mfd->mem_hid |= BIT(ION_IOMMU_HEAP_ID);
+	mfd->mem_hid &= ~ION_SECURE;
 
 	
 	mdp_hist_lut_init();

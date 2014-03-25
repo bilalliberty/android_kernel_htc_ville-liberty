@@ -1208,10 +1208,10 @@ static int hdmi_core_power(int on, int show)
 		return -ENODEV;					\
 	}							\
 } while (0)
-
+/*
 static uint32_t mhl_usb_switch_ouput_table[] = {
 	GPIO_CFG(VILLE_GPIO_MHL_USB_SELz, 0, GPIO_CFG_OUTPUT, GPIO_CFG_NO_PULL, GPIO_CFG_4MA),
-};
+};*/
 
 static void config_gpio_table(uint32_t *table, int len)
 {
