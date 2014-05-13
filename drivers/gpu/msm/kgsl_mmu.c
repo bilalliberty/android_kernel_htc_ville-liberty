@@ -655,7 +655,9 @@ kgsl_mmu_get_gpuaddr(struct kgsl_pagetable *pagetable,
 		if (memdesc->gpuaddr == 0) {
 			if (pagetable->name != KGSL_MMU_GLOBAL_PT && pagetable->name != KGSL_MMU_PRIV_BANK_TABLE_NAME) {
 				task = find_task_by_pid_ns(pagetable->name, &init_pid_ns);
-				if(task) {
+				if (task == NULL){
+					KGSL_CORE_ERR("PID task can not find\n");
+				} else {
 					task = task->group_leader;
 					get_task_comm(task_comm, task);
 				}

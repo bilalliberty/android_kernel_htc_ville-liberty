@@ -1481,6 +1481,9 @@ static int adreno_start(struct kgsl_device *device)
 
 	
 
+	if (adreno_is_a305(adreno_dev))
+		adreno_a3xx_pwron_fixup_init(adreno_dev);
+
 	
 	set_bit(ADRENO_DEVICE_PWRON, &adreno_dev->priv);
 
@@ -2304,14 +2307,13 @@ static int adreno_kill_suspect(struct kgsl_device *device, int pid)
 	char suspect_task_parent_comm[TASK_COMM_LEN+1];
 	int suspect_tgid;
 	struct task_struct *suspect_task = find_task_by_pid_ns(pid, &init_pid_ns);
-	struct task_struct *suspect_parent_task;
+	struct task_struct *suspect_parent_task = NULL;
 	int i = 0;
-
-	if (suspect_task) {
+	if (suspect_task != NULL) {
 		suspect_parent_task = suspect_task->group_leader;
 	} else {
 		KGSL_DRV_ERR(device, "Cannot find task! suspect_task is NULL!\n");
-		return -EINVAL;
+		return 0;
 	}
 
 	suspect_tgid = task_tgid_nr(suspect_task);
@@ -3080,7 +3082,7 @@ unsigned int adreno_ft_detect(struct kgsl_device *device,
 {
 	struct adreno_device *adreno_dev = ADRENO_DEVICE(device);
 	struct adreno_ringbuffer *rb = &adreno_dev->ringbuffer;
-	unsigned int curr_reg_val[FT_DETECT_REGS_COUNT] = {0};
+	unsigned int curr_reg_val[FT_DETECT_REGS_COUNT];
 	unsigned int fast_hang_detected = 1;
 	unsigned int long_ib_detected = 1;
 	unsigned int i;

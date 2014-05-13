@@ -414,7 +414,7 @@ static int kgsl_page_alloc_vmflags(struct kgsl_memdesc *memdesc)
 
 static void kgsl_page_alloc_free(struct kgsl_memdesc *memdesc)
 {
-	int i = 0, j, size;
+	int i = 0;
 	struct scatterlist *sg;
 	int sglen = memdesc->sglen;
 
@@ -429,9 +429,6 @@ static void kgsl_page_alloc_free(struct kgsl_memdesc *memdesc)
 		for_each_sg(memdesc->sg, sg, sglen, i){
 			if (sg->length == 0)
 				break;
-			size = 1 << get_order(sg->length);
-			for (j = 0; j < size; j++)
-				ClearPageKgsl(nth_page(sg_page(sg), j));
 			__free_pages(sg_page(sg), get_order(sg->length));
 		}
 	if (memdesc->private)
@@ -670,10 +667,8 @@ _kgsl_sharedmem_page_alloc(struct kgsl_memdesc *memdesc,
 			goto done;
 		}
 
-		for (j = 0; j < page_size >> PAGE_SHIFT; j++) {
+		for (j = 0; j < page_size >> PAGE_SHIFT; j++)
 			pages[pcount++] = nth_page(page, j);
-			SetPageKgsl(nth_page(page, j));
-		}
 
 		sg_set_page(&memdesc->sg[sglen++], page, page_size, 0);
 		len -= page_size;

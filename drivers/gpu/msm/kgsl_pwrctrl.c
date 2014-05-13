@@ -597,13 +597,14 @@ static int kgsl_pwrctrl_gpubusy_time_in_state_show(struct device *dev,
 	struct platform_device *pdev = NULL;
 	struct kgsl_device_platform_data *pdata = NULL;
 	s64 system_time, busy_time;
-
-	if(device == NULL)
+	if (device != NULL){
+		pdev = container_of(device->parentdev, struct platform_device, dev);
+		pdata = pdev->dev.platform_data;
+		if (!pdata) return 0;
+	} else {
+		printk("[KGSL] device is NULL!\n");
 		return 0;
-	pdev = container_of(device->parentdev, struct platform_device, dev);
-	if(pdev == NULL)
-		return 0;
-	pdata = pdev->dev.platform_data;
+	}
 
 	for(i=0;i<pdata->num_levels;i++) {
 		system_time = device->gputime_in_state[i].total;
@@ -670,9 +671,10 @@ static int kgsl_pwrctrl_reset_count_show(struct device *dev,
 					char *buf)
 {
 	struct kgsl_device *device = kgsl_device_from_dev(dev);
-	if(device == NULL)
-		return 0;
-	return snprintf(buf, PAGE_SIZE, "%d\n", device->reset_counter);
+	if (device != NULL)
+		return snprintf(buf, PAGE_SIZE, "%d\n", device->reset_counter);
+	else
+		return snprintf(buf, PAGE_SIZE, "device is NULL\n");
 }
 
 static int kgsl_pwrctrl_gputime_in_state_show(struct device *dev,
@@ -766,10 +768,7 @@ static void update_statistics(struct kgsl_device *device)
 	struct kgsl_clk_stats *clkstats = &device->pwrctrl.clk_stats;
 	unsigned int on_time = 0;
 	int i;
-	int num_pwrlevels;
-
-	num_pwrlevels = (device->pwrctrl.num_pwrlevels - 1 < KGSL_MAX_PWRLEVELS)?
-					(device->pwrctrl.num_pwrlevels - 1):(KGSL_MAX_PWRLEVELS - 1);
+	int num_pwrlevels = device->pwrctrl.num_pwrlevels - 1;
 	
 	for (i = 0; i < num_pwrlevels; i++) {
 		clkstats->old_clock_time[i] = clkstats->clock_time[i];
