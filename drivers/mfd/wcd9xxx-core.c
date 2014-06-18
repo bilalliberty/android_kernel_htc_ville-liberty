@@ -264,7 +264,9 @@ static int wcd9xxx_reset(struct wcd9xxx *wcd9xxx)
 {
 	int ret;
 
-	if (wcd9xxx->reset_gpio) {
+	
+	if (wcd9xxx->reset_gpio &&
+		wcd9xxx_intf == -1) {
 		ret = gpio_request(wcd9xxx->reset_gpio, "CDC_RESET");
 		if (ret) {
 			pr_err("%s: Failed to request gpio %d\n", __func__,
@@ -279,6 +281,8 @@ static int wcd9xxx_reset(struct wcd9xxx *wcd9xxx)
 		msleep(20);
 		gpio_direction_output(wcd9xxx->reset_gpio, 1);
 		msleep(20);
+	} else {
+		wcd9xxx->reset_gpio = 0;
 	}
 	return 0;
 }

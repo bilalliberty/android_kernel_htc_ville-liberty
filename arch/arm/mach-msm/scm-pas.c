@@ -21,6 +21,7 @@
 #include <mach/socinfo.h>
 #include <mach/msm_bus.h>
 #include <mach/msm_bus_board.h>
+#include <mach/msm_watchdog.h>
 #include "scm-pas.h"
 
 #define PAS_INIT_IMAGE_CMD	1
@@ -45,8 +46,12 @@ int pas_init_image(enum pas_id id, const u8 *metadata, size_t size)
 	request.proc = id;
 	request.image_addr = virt_to_phys(mdata_buf);
 
+	pr_info("init image, id:%d\n", id);
+	pet_watchdog();
+	set_dog_pet_footprint();
 	ret = scm_call(SCM_SVC_PIL, PAS_INIT_IMAGE_CMD, &request,
 			sizeof(request), &scm_ret, sizeof(scm_ret));
+	pr_info("init image, id:%d ret:%d\n", id, ret);
 	kfree(mdata_buf);
 
 	if (ret)
@@ -136,7 +141,7 @@ void scm_pas_disable_dx_bw(void)
 {
 	scm_pas_disable_bw();
 }
-EXPORT_SYMBOL(scm_pas_disable_bw);
+EXPORT_SYMBOL(scm_pas_disable_dx_bw);
 
 int pas_auth_and_reset(enum pas_id id)
 {
@@ -144,8 +149,12 @@ int pas_auth_and_reset(enum pas_id id)
 	u32 proc = id, scm_ret = 0;
 
 	bus_ret = scm_pas_enable_bw();
+	pr_info("auth and reset, id:%d\n", id);
+	pet_watchdog();
+	set_dog_pet_footprint();
 	ret = scm_call(SCM_SVC_PIL, PAS_AUTH_AND_RESET_CMD, &proc,
 			sizeof(proc), &scm_ret, sizeof(scm_ret));
+	pr_info("auth and reset, id:%d ret:%d\n", id, ret);
 	if (ret)
 		scm_ret = ret;
 	if (!bus_ret)

@@ -49,7 +49,7 @@ VREG_CONSUMERS(L6) = {
 };
 VREG_CONSUMERS(L7) = {
 	REGULATOR_SUPPLY("8921_l7",		NULL),
-	REGULATOR_SUPPLY("sdc_vdd_io",		"msm_sdcc.3"),
+	REGULATOR_SUPPLY("sdc_vdd_io",	"msm_sdcc.3"),
 };
 VREG_CONSUMERS(L8) = {
 	REGULATOR_SUPPLY("8921_l8",		NULL),
@@ -84,6 +84,7 @@ VREG_CONSUMERS(L12) = {
 VREG_CONSUMERS(L14) = {
 	REGULATOR_SUPPLY("8921_l14",		NULL),
 	REGULATOR_SUPPLY("pa_therm",		"pm8xxx-adc"),
+	REGULATOR_SUPPLY("vreg_xoadc",		"pm8921-charger"),
 };
 VREG_CONSUMERS(L15) = {
 	REGULATOR_SUPPLY("8921_l15",		NULL),

@@ -1,4 +1,4 @@
-/* Copyright (c) 2012, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2012, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -33,7 +33,13 @@
 #include <linux/pm_runtime.h>
 #include <linux/kernel.h>
 #include <linux/gpio.h>
+#include <linux/wait.h>
 #include "wcd9304.h"
+
+#undef pr_info
+#undef pr_err
+#define pr_info(fmt, ...) pr_aud_info(fmt, ##__VA_ARGS__)
+#define pr_err(fmt, ...) pr_aud_err(fmt, ##__VA_ARGS__)
 
 #define WCD9304_RATES (SNDRV_PCM_RATE_8000|SNDRV_PCM_RATE_16000|\
 			SNDRV_PCM_RATE_32000|SNDRV_PCM_RATE_48000)
@@ -55,12 +61,16 @@
 #define AIF1_PB 1
 #define AIF1_CAP 2
 #define NUM_CODEC_DAIS 2
+#define SLIM_CLOSE_TIMEOUT 1000
 
 struct sitar_codec_dai_data {
 	u32 rate;
 	u32 *ch_num;
 	u32 ch_act;
 	u32 ch_tot;
+	u32 bit_width;
+	u32 ch_mask;
+	wait_queue_head_t dai_wait;
 };
 
 #define SITAR_MCLK_RATE_12288KHZ 12288000
@@ -92,6 +102,7 @@ static int sitar_codec_enable_slimtx(struct snd_soc_dapm_widget *w,
 	struct snd_kcontrol *kcontrol, int event);
 static int sitar_codec_enable_slimrx(struct snd_soc_dapm_widget *w,
 	struct snd_kcontrol *kcontrol, int event);
+
 
 enum sitar_bandgap_type {
 	SITAR_BANDGAP_OFF = 0,
@@ -165,6 +176,16 @@ enum sitar_mbhc_state {
 	MBHC_STATE_RELEASE,
 };
 
+#define HPH_RX_GAIN_MAX 12
+struct htc_ramp_work {
+	struct work_struct rwork;
+	bool ramp_type;
+	int hp_ramp_vol_control;
+	int hp_ramp_vol_gain;
+	int line_ramp_vol_control;
+	int line_ramp_vol_gain;
+};
+
 struct sitar_priv {
 	struct snd_soc_codec *codec;
 	u32 mclk_freq;
@@ -228,6 +249,9 @@ struct sitar_priv {
 	bool hs_detect_work_stop;
 	struct delayed_work mbhc_btn_dwork;
 	unsigned long mbhc_last_resume; 
+
+	
+	struct htc_ramp_work audio_vol_ramp_work;
 };
 
 #ifdef CONFIG_DEBUG_FS
@@ -495,6 +519,136 @@ static const struct soc_enum cf_dec1_enum =
 static const struct soc_enum cf_rxmix1_enum =
 	SOC_ENUM_SINGLE(SITAR_A_CDC_RX1_B4_CTL, 1, 3, cf_text);
 
+static void audio_vol_ramping_func(struct work_struct *work)
+{
+	struct htc_ramp_work *vol_ramp = container_of(work, struct htc_ramp_work, rwork);
+	struct sitar_priv *sitar = container_of(vol_ramp, struct sitar_priv, audio_vol_ramp_work);
+	struct snd_soc_codec *codec = sitar->codec;
+
+	int vol_gain, vol_control, level;
+	int i, index;
+
+	if (!vol_ramp->ramp_type) {
+		vol_gain = vol_ramp->hp_ramp_vol_gain;
+		vol_control = vol_ramp->hp_ramp_vol_control;
+	} else {
+		vol_gain = vol_ramp->line_ramp_vol_gain;
+		vol_control = vol_ramp->line_ramp_vol_control;
+	}
+	level = vol_gain - vol_control;
+	index = level > 0 ? level: -level;
+
+	if (vol_gain == vol_control){
+		if (!vol_ramp->ramp_type) {
+            pr_info("%s, force volume set without ramping value =%d\n", __func__, vol_control);
+			snd_soc_update_bits(codec, SITAR_A_RX_HPH_L_GAIN, 0x0F,
+					(HPH_RX_GAIN_MAX - vol_control));
+			snd_soc_update_bits(codec, SITAR_A_RX_HPH_R_GAIN, 0x0F,
+					(HPH_RX_GAIN_MAX- vol_control));
+		} else {
+			snd_soc_update_bits(codec, SITAR_A_RX_LINE_1_GAIN, 0x0F,
+					(HPH_RX_GAIN_MAX - vol_control));
+			snd_soc_update_bits(codec, SITAR_A_RX_LINE_2_GAIN, 0x0F,
+					(HPH_RX_GAIN_MAX - vol_control));
+		}
+	return;
+    }
+
+	if (vol_ramp->ramp_type)
+		usleep_range(300000, 300000);
+
+	for (i = 0; i < index; i++) {
+		if (level > 0) {
+			vol_control++;
+			if (!vol_ramp->ramp_type) {
+				snd_soc_update_bits(codec, SITAR_A_RX_HPH_L_GAIN, 0x0F,
+						(HPH_RX_GAIN_MAX - vol_control));
+				snd_soc_update_bits(codec, SITAR_A_RX_HPH_R_GAIN, 0x0F,
+						(HPH_RX_GAIN_MAX- vol_control));
+			} else {
+				snd_soc_update_bits(codec, SITAR_A_RX_LINE_1_GAIN, 0x0F,
+						(HPH_RX_GAIN_MAX - vol_control));
+				snd_soc_update_bits(codec, SITAR_A_RX_LINE_2_GAIN, 0x0F,
+						(HPH_RX_GAIN_MAX - vol_control));
+			}
+			usleep_range(10000, 10000);
+		} else {
+			vol_control--;
+			if (!vol_ramp->ramp_type) {
+				snd_soc_update_bits(codec, SITAR_A_RX_HPH_L_GAIN, 0x0F,
+						(HPH_RX_GAIN_MAX - vol_control));
+				snd_soc_update_bits(codec, SITAR_A_RX_HPH_R_GAIN, 0x0F,
+						(HPH_RX_GAIN_MAX- vol_control));
+			} else {
+				snd_soc_update_bits(codec, SITAR_A_RX_LINE_1_GAIN, 0x0F,
+						(HPH_RX_GAIN_MAX - vol_control));
+				snd_soc_update_bits(codec, SITAR_A_RX_LINE_2_GAIN, 0x0F,
+						(HPH_RX_GAIN_MAX - vol_control));
+			}
+			usleep_range(10000, 10000);
+		}
+	}
+
+	if (!vol_ramp->ramp_type) {
+		vol_ramp->hp_ramp_vol_control = vol_control;
+		pr_info("%s, volume value =%d\n", __func__, vol_ramp->hp_ramp_vol_control);
+	} else {
+		vol_ramp->line_ramp_vol_control = vol_control;
+		pr_info("%s, volume value =%d\n", __func__, vol_ramp->line_ramp_vol_control);
+	}
+	return;
+}
+
+static int sitar_hphr_get_vol_ramp(struct snd_kcontrol *kcontrol,
+				struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_codec *codec = snd_kcontrol_chip(kcontrol);
+	struct sitar_priv *sitar = snd_soc_codec_get_drvdata(codec);
+	struct htc_ramp_work *vol_ramp = &sitar->audio_vol_ramp_work;
+
+	ucontrol->value.integer.value[0] = vol_ramp->hp_ramp_vol_control;
+	return 0;
+}
+
+static int sitar_hphr_set_vol_ramp(struct snd_kcontrol *kcontrol,
+				struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_codec *codec = snd_kcontrol_chip(kcontrol);
+	struct sitar_priv *sitar = snd_soc_codec_get_drvdata(codec);
+	struct htc_ramp_work *vol_ramp = &sitar->audio_vol_ramp_work;
+
+	pr_info("%s, volume value =%d\n", __func__, vol_ramp->hp_ramp_vol_control);
+	vol_ramp->hp_ramp_vol_gain = ucontrol->value.integer.value[0];
+	vol_ramp->ramp_type = 0;
+	schedule_work(&vol_ramp->rwork);
+	return 0;
+}
+
+static int sitar_lineout_get_vol_ramp(struct snd_kcontrol *kcontrol,
+				struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_codec *codec = snd_kcontrol_chip(kcontrol);
+	struct sitar_priv *sitar = snd_soc_codec_get_drvdata(codec);
+	struct htc_ramp_work *vol_ramp = &sitar->audio_vol_ramp_work;
+
+	ucontrol->value.integer.value[0] = vol_ramp->line_ramp_vol_control;
+	return 0;
+}
+
+static int sitar_lineout_set_vol_ramp(struct snd_kcontrol *kcontrol,
+				struct snd_ctl_elem_value *ucontrol)
+{
+	struct snd_soc_codec *codec = snd_kcontrol_chip(kcontrol);
+	struct sitar_priv *sitar = snd_soc_codec_get_drvdata(codec);
+	struct htc_ramp_work *vol_ramp = &sitar->audio_vol_ramp_work;
+
+	pr_info("%s, volume value =%d\n", __func__, vol_ramp->line_ramp_vol_control);
+	vol_ramp->line_ramp_vol_gain = ucontrol->value.integer.value[0];
+	vol_ramp->ramp_type = 1;
+	schedule_work(&vol_ramp->rwork);
+	return 0;
+}
+
 static const struct snd_kcontrol_new sitar_snd_controls[] = {
 
 	SOC_ENUM_EXT("EAR PA Gain", sitar_ear_pa_gain_enum[0],
@@ -509,6 +663,10 @@ static const struct snd_kcontrol_new sitar_snd_controls[] = {
 		line_gain),
 	SOC_SINGLE_TLV("HPHR Volume", SITAR_A_RX_HPH_R_GAIN, 0, 12, 1,
 		line_gain),
+	SOC_SINGLE_EXT_TLV("HPH Ramp Volume", 0, 0, HPH_RX_GAIN_MAX, 1,
+		sitar_hphr_get_vol_ramp, sitar_hphr_set_vol_ramp, line_gain),
+	SOC_SINGLE_EXT_TLV("LINEOUT Ramp Volume", 0, 0, HPH_RX_GAIN_MAX, 1,
+		sitar_lineout_get_vol_ramp, sitar_lineout_set_vol_ramp, line_gain),
 
 	SOC_SINGLE_S8_TLV("RX1 Digital Volume", SITAR_A_CDC_RX1_VOL_CTL_B2_CTL,
 		-84, 40, digital_gain),
@@ -537,10 +695,6 @@ static const struct snd_kcontrol_new sitar_snd_controls[] = {
 	SOC_SINGLE_TLV("ADC1 Volume", SITAR_A_TX_1_2_EN, 5, 3, 0, analog_gain),
 	SOC_SINGLE_TLV("ADC2 Volume", SITAR_A_TX_1_2_EN, 1, 3, 0, analog_gain),
 	SOC_SINGLE_TLV("ADC3 Volume", SITAR_A_TX_3_EN, 5, 3, 0, analog_gain),
-
-	SOC_SINGLE("MICBIAS1 CAPLESS Switch", SITAR_A_MICB_1_CTL, 4, 1, 1),
-	SOC_SINGLE("MICBIAS2 CAPLESS Switch", SITAR_A_MICB_2_CTL, 4, 1, 1),
-
 	SOC_SINGLE_EXT("ANC Slot", SND_SOC_NOPM, 0, 0, 100, sitar_get_anc_slot,
 				   sitar_put_anc_slot),
 
@@ -786,19 +940,108 @@ static const struct snd_kcontrol_new sb_tx2_mux =
 
 static const struct snd_kcontrol_new sb_tx1_mux =
 	SOC_DAPM_ENUM("SLIM TX1 MUX Mux", sb_tx1_mux_enum);
+static int wcd9304_put_dec_enum(struct snd_kcontrol *kcontrol,
+		struct snd_ctl_elem_value *ucontrol)
+	{
+	struct snd_soc_dapm_widget_list *wlist = snd_kcontrol_chip(kcontrol);
+	struct snd_soc_dapm_widget *w = wlist->widgets[0];
+	struct snd_soc_codec *codec = w->codec;
+	struct soc_enum *e = (struct soc_enum *)kcontrol->private_value;
+	unsigned int dec_mux, decimator;
+	char *dec_name = NULL;
+	char *widget_name = NULL;
+	char *temp;
+	u16 tx_mux_ctl_reg;
+	u8 adc_dmic_sel = 0x0;
+	int ret = 0;
+	char *str = NULL;
+
+	if (ucontrol->value.enumerated.item[0] > e->max - 1)
+		return -EINVAL;
+
+	dec_mux = ucontrol->value.enumerated.item[0];
+
+	widget_name = kstrndup(w->name, 15, GFP_KERNEL);
+	if (!widget_name)
+		return -ENOMEM;
+	temp = widget_name;
+
+	dec_name = strsep(&widget_name, " ");
+	widget_name = temp;
+	if (!dec_name) {
+		pr_err("%s: Invalid decimator = %s\n", __func__, w->name);
+		ret = -EINVAL;
+		goto out;
+	}
+
+        ret = -1;
+        str = strpbrk(dec_name, "123456789");
+        if (str)
+	  ret = kstrtouint(str, 10, &decimator);
+	if (ret < 0) {
+		pr_err("%s: Invalid decimator = %s\n", __func__, dec_name);
+		ret = -EINVAL;
+		goto out;
+	}
+
+	dev_dbg(w->dapm->dev, "%s(): widget = %s dec_name = %s decimator = %u"
+		" dec_mux = %u\n", __func__, w->name, dec_name, decimator,
+		dec_mux);
+
+	switch (decimator) {
+	case 1:
+	case 2:
+		if ((dec_mux == 1) || (dec_mux == 6))
+			adc_dmic_sel = 0x1;
+		else
+			adc_dmic_sel = 0x0;
+		break;
+	case 3:
+		if ((dec_mux == 1) || (dec_mux == 6) || (dec_mux == 7))
+			adc_dmic_sel = 0x1;
+		else
+			adc_dmic_sel = 0x0;
+		break;
+	case 4:
+		if ((dec_mux == 1) ||(dec_mux == 5) || (dec_mux == 6) || (dec_mux == 7))
+			adc_dmic_sel = 0x1;
+		else
+			adc_dmic_sel = 0x0;
+		break;
+	default:
+		pr_err("%s: Invalid Decimator = %u\n", __func__, decimator);
+		ret = -EINVAL;
+		goto out;
+	}
+
+	tx_mux_ctl_reg = SITAR_A_CDC_TX1_MUX_CTL + 8 * (decimator - 1);
+
+	snd_soc_update_bits(codec, tx_mux_ctl_reg, 0x1, adc_dmic_sel);
+
+	ret = snd_soc_dapm_put_enum_double(kcontrol, ucontrol);
+out:
+	kfree(widget_name);
+	return ret;
+}
+
+#define WCD9304_DEC_ENUM(xname, xenum) \
+{	.iface = SNDRV_CTL_ELEM_IFACE_MIXER, .name = xname, \
+	.info = snd_soc_info_enum_double, \
+	.get = snd_soc_dapm_get_enum_double, \
+	.put = wcd9304_put_dec_enum, \
+	.private_value = (unsigned long)&xenum }
 
 static const struct snd_kcontrol_new dec1_mux =
-	SOC_DAPM_ENUM("DEC1 MUX Mux", dec1_mux_enum);
+	WCD9304_DEC_ENUM("DEC1 MUX Mux", dec1_mux_enum);
 
 static const struct snd_kcontrol_new dec2_mux =
-	SOC_DAPM_ENUM("DEC2 MUX Mux", dec2_mux_enum);
+	WCD9304_DEC_ENUM("DEC2 MUX Mux", dec2_mux_enum);
 
 static const struct snd_kcontrol_new dec3_mux =
-	SOC_DAPM_ENUM("DEC3 MUX Mux", dec3_mux_enum);
+	WCD9304_DEC_ENUM("DEC3 MUX Mux", dec3_mux_enum);
 
 static const struct snd_kcontrol_new dec4_mux =
-	SOC_DAPM_ENUM("DEC4 MUX Mux", dec4_mux_enum);
-
+	WCD9304_DEC_ENUM("DEC4 MUX Mux", dec4_mux_enum);
 static const struct snd_kcontrol_new iir1_inp1_mux =
 	SOC_DAPM_ENUM("IIR1 INP1 Mux", iir1_inp1_mux_enum);
 
@@ -827,14 +1070,13 @@ static void sitar_codec_enable_adc_block(struct snd_soc_codec *codec,
 
 	if (enable) {
 		sitar->adc_count++;
-		snd_soc_update_bits(codec, SITAR_A_TX_COM_BIAS, 0xE0, 0xE0);
-
+		snd_soc_update_bits(codec, SITAR_A_CDC_CLK_OTHR_CTL, 0x02, 0x02);
 	} else {
 		sitar->adc_count--;
 		if (!sitar->adc_count) {
 			if (!sitar->mbhc_polling_active)
-				snd_soc_update_bits(codec, SITAR_A_TX_COM_BIAS,
-					0xE0, 0x0);
+				snd_soc_update_bits(codec,
+					SITAR_A_CDC_CLK_OTHR_CTL, 0xE0, 0x0);
 		}
 	}
 }
@@ -915,6 +1157,7 @@ static int sitar_codec_enable_lineout(struct snd_soc_dapm_widget *w,
 	switch (w->shift) {
 	case 0:
 		lineout_gain_reg = SITAR_A_RX_LINE_1_GAIN;
+		usleep_range(100000, 100000);
 		break;
 	case 1:
 		lineout_gain_reg = SITAR_A_RX_LINE_2_GAIN;
@@ -945,10 +1188,10 @@ static int sitar_codec_enable_dmic(struct snd_soc_dapm_widget *w,
 	struct snd_kcontrol *kcontrol, int event)
 {
 	struct snd_soc_codec *codec = w->codec;
-	u16 tx_dmic_ctl_reg, tx_mux_ctl_reg;
+	u16 tx_dmic_ctl_reg;
 	u8 dmic_clk_sel, dmic_clk_en;
 	unsigned int dmic;
-	int ret;
+	int ret= -1;
 
 	ret = kstrtouint(strpbrk(w->name, "1234"), 10, &dmic);
 	if (ret < 0) {
@@ -974,16 +1217,12 @@ static int sitar_codec_enable_dmic(struct snd_soc_dapm_widget *w,
 		pr_err("%s: Invalid DMIC Selection\n", __func__);
 		return -EINVAL;
 	}
-
-	tx_mux_ctl_reg = SITAR_A_CDC_TX1_MUX_CTL + 8 * (dmic - 1);
 	tx_dmic_ctl_reg = SITAR_A_CDC_TX1_DMIC_CTL + 8 * (dmic - 1);
 
 	pr_debug("%s %d\n", __func__, event);
 
 	switch (event) {
 	case SND_SOC_DAPM_PRE_PMU:
-		snd_soc_update_bits(codec, tx_mux_ctl_reg, 0x01, 0x01);
-
 		snd_soc_update_bits(codec, SITAR_A_CDC_CLK_DMIC_CTL,
 				dmic_clk_sel, dmic_clk_sel);
 
@@ -995,8 +1234,6 @@ static int sitar_codec_enable_dmic(struct snd_soc_dapm_widget *w,
 	case SND_SOC_DAPM_POST_PMD:
 		snd_soc_update_bits(codec, SITAR_A_CDC_CLK_DMIC_CTL,
 				dmic_clk_en, 0);
-
-		snd_soc_update_bits(codec, tx_mux_ctl_reg, 0x01, 0x00);
 		break;
 	}
 	return 0;
@@ -1032,7 +1269,12 @@ static int sitar_codec_enable_anc(struct snd_soc_dapm_widget *w,
 			return -ENODEV;
 		}
 
-		if (fw->size < sizeof(struct anc_header)) {
+		if (fw == NULL) {
+			dev_err(codec->dev, "Access NULL pointer: fw\n");
+			return -EINVAL;
+		}
+
+		if (!fw || (fw->size < sizeof(struct anc_header))) {
 			dev_err(codec->dev, "Not enough data\n");
 			release_firmware(fw);
 			return -ENOMEM;
@@ -1390,8 +1632,7 @@ static int sitar_codec_enable_micbias(struct snd_soc_dapm_widget *w,
 			sitar_codec_switch_micbias(codec, 0);
 			SITAR_RELEASE_LOCK(sitar->codec_resource_lock);
 		}
-
-		snd_soc_update_bits(codec, w->reg, 0x1E, 0x00);
+		snd_soc_update_bits(codec, w->reg, 0x0E, 0x0A);
 		sitar_codec_update_cfilt_usage(codec, cfilt_sel_val, 1);
 
 		if (strnstr(w->name, internal1_text, 30))
@@ -1446,6 +1687,7 @@ static int sitar_codec_enable_dec(struct snd_soc_dapm_widget *w,
 		snd_soc_update_bits(codec, dec_reset_reg, 1 << w->shift,
 			1 << w->shift);
 		snd_soc_update_bits(codec, dec_reset_reg, 1 << w->shift, 0x0);
+		snd_soc_update_bits(codec, SITAR_A_CDC_CLK_TX_CLK_EN_B1_CTL, 0x01, 0x01);
 		break;
 	case SND_SOC_DAPM_POST_PMU:
 		
@@ -1538,10 +1780,22 @@ static int sitar_hph_dac_event(struct snd_soc_dapm_widget *w,
 
 	switch (event) {
 	case SND_SOC_DAPM_PRE_PMU:
+		if (w->reg == SITAR_A_RX_HPH_L_DAC_CTL) {
+			snd_soc_update_bits(codec, SITAR_A_CDC_CONN_CLSG_CTL,
+				0x30, 0x20);
+			snd_soc_update_bits(codec, SITAR_A_CDC_CONN_CLSG_CTL,
+				0x0C, 0x08);
+		}
 		snd_soc_update_bits(codec, w->reg, 0x40, 0x40);
 		break;
 	case SND_SOC_DAPM_POST_PMD:
 		snd_soc_update_bits(codec, w->reg, 0x40, 0x00);
+		if (w->reg == SITAR_A_RX_HPH_L_DAC_CTL) {
+			snd_soc_update_bits(codec, SITAR_A_CDC_CONN_CLSG_CTL,
+				0x30, 0x10);
+			snd_soc_update_bits(codec, SITAR_A_CDC_CONN_CLSG_CTL,
+				0x0C, 0x04);
+		}
 		break;
 	}
 	return 0;
@@ -1620,6 +1874,7 @@ static int sitar_hph_pa_event(struct snd_soc_dapm_widget *w,
 		break;
 
 	case SND_SOC_DAPM_POST_PMD:
+		usleep_range(15000,15000);
 		if (w->shift == 5) {
 			clear_bit(SITAR_HPHL_PA_OFF_ACK,
 				 &sitar->hph_pa_dac_state);
@@ -1721,6 +1976,36 @@ static int sitar_codec_enable_charge_pump(struct snd_soc_dapm_widget *w,
 	return 0;
 }
 
+static int sitar_ear_dac_event(struct snd_soc_dapm_widget *w,
+	struct snd_kcontrol *kcontrol, int event)
+{
+	pr_debug("%s: event = %d\n", __func__, event);
+	switch (event) {
+		case SND_SOC_DAPM_PRE_PMU:
+			usleep_range(10000,10000);
+		break;
+	}
+	return 0;
+}
+
+static int sitar_ear_pa_event(struct snd_soc_dapm_widget *w,
+		struct snd_kcontrol *kcontrol, int event)
+{
+	switch (event) {
+	case SND_SOC_DAPM_POST_PMU:
+		pr_debug("%s: Sleeping 20ms after enabling EAR PA\n",
+				 __func__);
+		msleep(20);
+		break;
+	case SND_SOC_DAPM_POST_PMD:
+		pr_debug("%s: Sleeping 20ms after disabling EAR PA\n",
+				 __func__);
+		msleep(20);
+		break;
+	}
+	return 0;
+}
+
 static const struct snd_soc_dapm_widget sitar_dapm_i2s_widgets[] = {
 	SND_SOC_DAPM_SUPPLY("RX_I2S_CLK", SITAR_A_CDC_CLK_RX_I2S_CTL,
 	4, 0, NULL, 0),
@@ -1732,9 +2017,11 @@ static const struct snd_soc_dapm_widget sitar_dapm_widgets[] = {
 	
 	SND_SOC_DAPM_OUTPUT("EAR"),
 
-	SND_SOC_DAPM_PGA("EAR PA", SITAR_A_RX_EAR_EN, 4, 0, NULL, 0),
-	SND_SOC_DAPM_MIXER("DAC1", SITAR_A_RX_EAR_EN, 6, 0, dac1_switch,
-		ARRAY_SIZE(dac1_switch)),
+	SND_SOC_DAPM_PGA_E("EAR PA", SITAR_A_RX_EAR_EN, 4, 0, NULL, 0,
+				sitar_ear_pa_event, SND_SOC_DAPM_POST_PMU |
+				SND_SOC_DAPM_POST_PMD),
+	SND_SOC_DAPM_MIXER_E("DAC1", SITAR_A_RX_EAR_EN, 6, 0, dac1_switch,
+		ARRAY_SIZE(dac1_switch), sitar_ear_dac_event, SND_SOC_DAPM_PRE_PMU),
 	SND_SOC_DAPM_SUPPLY("EAR DRIVER", SITAR_A_RX_EAR_EN, 3, 0, NULL, 0),
 	SND_SOC_DAPM_AIF_IN_E("SLIM RX1", "AIF1 Playback", 0, SND_SOC_NOPM, 0,
 				0, sitar_codec_enable_slimrx,
@@ -1979,9 +2266,11 @@ static const struct snd_soc_dapm_route audio_map[] = {
 	{"HPHR DAC", NULL, "CP"},
 
 	{"HPHL", NULL, "HPHL DAC"},
-	{"HPHL DAC", "NULL", "DAC4 MUX"},
+	{"HPHL DAC", "NULL", "RX2 CHAIN"},
+	{"RX2 CHAIN", NULL, "DAC4 MUX"},
 	{"HPHR", NULL, "HPHR DAC"},
-	{"HPHR DAC", NULL, "RX3 MIX1"},
+	{"HPHR DAC", NULL, "RX3 CHAIN"},
+	{"RX3 CHAIN", NULL, "RX3 MIX1"},
 
 	{"DAC1 MUX", "RX1", "RX1 CHAIN"},
 	{"DAC2 MUX", "RX1", "RX1 CHAIN"},
@@ -2067,6 +2356,8 @@ static const struct snd_soc_dapm_route audio_map[] = {
 	{"SLIM TX1 MUX", "DEC1", "DEC1 MUX"},
 	{"SLIM TX2 MUX", "DEC2", "DEC2 MUX"},
 	{"SLIM TX3 MUX", "DEC3", "DEC3 MUX"},
+	{"SLIM TX3 MUX", "RMIX1", "RX1 MIX1"}, 
+	{"SLIM TX3 MUX", "RMIX2", "RX2 MIX1"}, 
 	{"SLIM TX4 MUX", "DEC4", "DEC4 MUX"},
 	{"SLIM TX5 MUX", "DEC1", "DEC1 MUX"},
 	{"SLIM TX5 MUX", "DEC2", "DEC2 MUX"},
@@ -2145,6 +2436,9 @@ static int sitar_volatile(struct snd_soc_codec *ssc, unsigned int reg)
 {
 	int i;
 
+	/* Registers lower than 0x100 are top level registers which can be
+	* written by the Sitar core driver.
+	*/
 	if ((reg >= SITAR_A_CDC_MBHC_EN_CTL) || (reg < 0x100))
 		return 1;
 
@@ -2165,7 +2459,7 @@ static int sitar_volatile(struct snd_soc_codec *ssc, unsigned int reg)
 	return 0;
 }
 
-#define SITAR_FORMATS (SNDRV_PCM_FMTBIT_S16_LE)
+#define SITAR_FORMATS (SNDRV_PCM_FMTBIT_S16_LE | SNDRV_PCM_FORMAT_S24_LE)
 static int sitar_write(struct snd_soc_codec *codec, unsigned int reg,
 	unsigned int value)
 {
@@ -2402,25 +2696,47 @@ static int sitar_startup(struct snd_pcm_substream *substream,
 {
 	struct wcd9xxx *wcd9xxx = dev_get_drvdata(dai->codec->dev->parent);
 	if ((wcd9xxx != NULL) && (wcd9xxx->dev != NULL) &&
-			(wcd9xxx->dev->parent != NULL))
+			(wcd9xxx->dev->parent != NULL)) {
 		pm_runtime_get_sync(wcd9xxx->dev->parent);
+	}
 	pr_debug("%s(): substream = %s  stream = %d\n" , __func__,
 		substream->name, substream->stream);
 
 	return 0;
 }
 
+static void sitar_codec_pm_runtime_put(struct wcd9xxx *sitar)
+{
+	if (sitar->dev != NULL &&
+			sitar->dev->parent != NULL) {
+		pm_runtime_mark_last_busy(sitar->dev->parent);
+		pm_runtime_put(sitar->dev->parent);
+	}
+}
+
 static void sitar_shutdown(struct snd_pcm_substream *substream,
 		struct snd_soc_dai *dai)
 {
-	struct wcd9xxx *wcd9xxx = dev_get_drvdata(dai->codec->dev->parent);
-	if ((wcd9xxx != NULL) && (wcd9xxx->dev != NULL) &&
-			(wcd9xxx->dev->parent != NULL)) {
-		pm_runtime_mark_last_busy(wcd9xxx->dev->parent);
-		pm_runtime_put(wcd9xxx->dev->parent);
-	}
+	struct wcd9xxx *sitar_core = dev_get_drvdata(dai->codec->dev->parent);
+	struct sitar_priv *sitar = snd_soc_codec_get_drvdata(dai->codec);
+	u32 active = 0;
+
 	pr_debug("%s(): substream = %s  stream = %d\n" , __func__,
 		substream->name, substream->stream);
+	if (sitar->intf_type != WCD9XXX_INTERFACE_TYPE_SLIMBUS)
+		return;
+
+	if (dai->id <= NUM_CODEC_DAIS) {
+		if (sitar->dai[dai->id-1].ch_mask) {
+			active = 1;
+			pr_debug("%s(): Codec DAI: chmask[%d] = 0x%x\n",
+				__func__, dai->id-1,
+				sitar->dai[dai->id-1].ch_mask);
+		}
+	}
+
+	if (sitar_core != NULL && active == 0)
+		sitar_codec_pm_runtime_put(sitar_core);
 }
 
 int sitar_mclk_enable(struct snd_soc_codec *codec, int mclk_enable, bool dapm)
@@ -2543,11 +2859,27 @@ static int sitar_set_channel_map(struct snd_soc_dai *dai,
 			sitar->dai[dai->id - 1].ch_tot = rx_num;
 		}
 	} else if (dai->id == AIF1_CAP) {
+#if 0
 		for (i = 0; i < tx_num; i++) {
 			sitar->dai[dai->id - 1].ch_num[i]  = tx_slot[i];
 			sitar->dai[dai->id - 1].ch_act = 0;
 			sitar->dai[dai->id - 1].ch_tot = tx_num;
 		}
+#endif
+		sitar->dai[dai->id - 1].ch_tot = tx_num;
+		if ((sitar->dai[dai->id - 1].ch_tot != 0)
+			&& (sitar->dai[dai->id - 1].ch_act ==
+			sitar->dai[dai->id - 1].ch_tot)) {
+			pr_info("%s: ch_act = %d, ch_tot = %d\n", __func__,
+			sitar->dai[dai->id - 1].ch_act,
+			sitar->dai[dai->id - 1].ch_tot);
+
+			return 0;
+		}
+		sitar->dai[dai->id - 1].ch_act = 0;
+
+		for (i = 0; i < tx_num; i++)
+			sitar->dai[dai->id - 1].ch_num[i]  = tx_slot[i];
 	}
 	return 0;
 }
@@ -2577,10 +2909,18 @@ static int sitar_get_channel_map(struct snd_soc_dai *dai,
 		}
 	} else if (dai->id == AIF1_CAP) {
 		*tx_num = sitar_dai[dai->id - 1].capture.channels_max;
-		tx_slot[0] = tx_ch[cnt];
-		tx_slot[1] = tx_ch[4 + cnt];
-		tx_slot[2] = tx_ch[2 + cnt];
-		tx_slot[3] = tx_ch[3 + cnt];
+#ifdef CONFIG_SND_SOC_WCD9304_SWITCH_PORT
+		tx_slot[0] = tx_ch[2 + cnt];	
+		tx_slot[1] = tx_ch[3 + cnt];	
+		tx_slot[2] = tx_ch[cnt];		
+		tx_slot[3] = tx_ch[1 + cnt];	
+#else
+		
+		tx_slot[0] = tx_ch[cnt];		
+		tx_slot[1] = tx_ch[4 + cnt];	
+		tx_slot[2] = tx_ch[2 + cnt];	
+		tx_slot[3] = tx_ch[3 + cnt];	
+#endif
 	}
 	return 0;
 }
@@ -2695,6 +3035,21 @@ static int sitar_hw_params(struct snd_pcm_substream *substream,
 						0x03, (rx_fs_rate >> 0x05));
 		} else {
 			sitar->dai[dai->id - 1].rate   = params_rate(params);
+			sitar->dai[dai->id - 1].bit_width =
+				(params_format(params) ==
+				 SNDRV_PCM_FORMAT_S24_LE) ? 24 : 16;
+			if (sitar->dai[dai->id - 1].bit_width == 24) {
+				snd_soc_update_bits(codec, SITAR_A_CDC_CONN_RX_SB_B1_CTL,
+						0xFF, 0x00);
+				snd_soc_update_bits(codec, SITAR_A_CDC_CONN_RX_SB_B2_CTL,
+						0x03, 0x00);
+			} else {
+				snd_soc_update_bits(codec, SITAR_A_CDC_CONN_RX_SB_B1_CTL,
+						0xFF, 0xAA);
+				snd_soc_update_bits(codec, SITAR_A_CDC_CONN_RX_SB_B2_CTL,
+						0x03, 0x02);
+			}
+			sitar->dai[dai->id - 1].rate   = params_rate(params);
 		}
 	}
 
@@ -2742,6 +3097,42 @@ static struct snd_soc_dai_driver sitar_dai[] = {
 	},
 };
 
+static int sitar_codec_enable_chmask(struct sitar_priv *sitar,
+	int event, int index)
+{
+	int ret = 0;
+	u32 k = 0;
+	switch (event) {
+	case SND_SOC_DAPM_POST_PMU:
+		for (k = 0; k < sitar->dai[index].ch_tot; k++) {
+			ret = wcd9xxx_get_slave_port(
+						sitar->dai[index].ch_num[k]);
+			if (ret < 0) {
+				pr_err("%s: Invalid Slave port ID: %d\n",
+					   __func__, ret);
+				ret = -EINVAL;
+				break;
+			}
+			sitar->dai[index].ch_mask |= 1 << ret;
+		}
+		ret = 0;
+		break;
+	case SND_SOC_DAPM_POST_PMD:
+		ret = wait_event_timeout(sitar->dai[index].dai_wait,
+					(sitar->dai[index].ch_mask == 0),
+					msecs_to_jiffies(SLIM_CLOSE_TIMEOUT));
+		if (!ret) {
+			pr_err("%s: slim close tx/rx timeout\n",
+				   __func__);
+			ret = -EINVAL;
+		} else {
+			ret = 0;
+		}
+		break;
+	}
+	return ret;
+}
+
 static struct snd_soc_dai_driver sitar_i2s_dai[] = {
 	{
 		.name = "sitar_i2s_rx1",
@@ -2780,11 +3171,18 @@ static int sitar_codec_enable_slimrx(struct snd_soc_dapm_widget *w,
 	struct snd_soc_codec *codec = w->codec;
 	struct sitar_priv *sitar_p = snd_soc_codec_get_drvdata(codec);
 	u32  j = 0;
+	int ret = 0;
 	codec->control_data = dev_get_drvdata(codec->dev->parent);
 	sitar = codec->control_data;
 	
-	if (sitar_p->intf_type != WCD9XXX_INTERFACE_TYPE_SLIMBUS)
+	if (sitar_p->intf_type != WCD9XXX_INTERFACE_TYPE_SLIMBUS) {
+		if (event == SND_SOC_DAPM_POST_PMD && (sitar != NULL))
+			sitar_codec_pm_runtime_put(sitar);
 		return 0;
+	}
+
+	pr_debug("%s: %s %d\n", __func__, w->name, event);
+
 	switch (event) {
 	case SND_SOC_DAPM_POST_PMU:
 		for (j = 0; j < ARRAY_SIZE(sitar_dai); j++) {
@@ -2796,11 +3194,18 @@ static int sitar_codec_enable_slimrx(struct snd_soc_dapm_widget *w,
 				break;
 			}
 		}
-		if (sitar_p->dai[j].ch_act == sitar_p->dai[j].ch_tot)
-			wcd9xxx_cfg_slim_sch_rx(sitar,
+		if (( j < ARRAY_SIZE(sitar_dai)) && (sitar_p->dai[j].ch_act == sitar_p->dai[j].ch_tot)) {
+			ret = sitar_codec_enable_chmask(sitar_p, event, j);
+
+			if (sitar_p->dai[j].bit_width == 0)
+				sitar_p->dai[j].bit_width = 16;
+
+			ret = wcd9xxx_cfg_slim_sch_rx(sitar,
 					sitar_p->dai[j].ch_num,
 					sitar_p->dai[j].ch_tot,
-					sitar_p->dai[j].rate);
+					sitar_p->dai[j].rate,
+					sitar_p->dai[j].bit_width);
+		}
 		break;
 	case SND_SOC_DAPM_POST_PMD:
 		for (j = 0; j < ARRAY_SIZE(sitar_dai); j++) {
@@ -2808,22 +3213,35 @@ static int sitar_codec_enable_slimrx(struct snd_soc_dapm_widget *w,
 				continue;
 			if (!strncmp(w->sname,
 				sitar_dai[j].playback.stream_name, 13)) {
-				--sitar_p->dai[j].ch_act;
+				if(sitar_p->dai[j].ch_act)
+					--sitar_p->dai[j].ch_act;
 				break;
 			}
 		}
-		if (!sitar_p->dai[j].ch_act) {
+		if ((j < ARRAY_SIZE(sitar_dai)) && (!sitar_p->dai[j].ch_act)) {
 			wcd9xxx_close_slim_sch_rx(sitar,
 					sitar_p->dai[j].ch_num,
 					sitar_p->dai[j].ch_tot);
 			usleep_range(15000, 15000);
+
+			ret = sitar_codec_enable_chmask(sitar_p, event, j);
+			if (ret < 0) {
+				ret = wcd9xxx_disconnect_port(sitar,
+									sitar_p->dai[j].ch_num,
+									sitar_p->dai[j].ch_tot,
+									1);
+				pr_info("%s: Disconnect RX port ret = %d\n",
+					__func__, ret);
+			}
 			sitar_p->dai[j].rate = 0;
 			memset(sitar_p->dai[j].ch_num, 0, (sizeof(u32)*
 					sitar_p->dai[j].ch_tot));
 			sitar_p->dai[j].ch_tot = 0;
+			if (sitar != NULL)
+				sitar_codec_pm_runtime_put(sitar);
 		}
 	}
-	return 0;
+	return ret;
 }
 
 static int sitar_codec_enable_slimtx(struct snd_soc_dapm_widget *w,
@@ -2834,13 +3252,17 @@ static int sitar_codec_enable_slimtx(struct snd_soc_dapm_widget *w,
 	struct sitar_priv *sitar_p = snd_soc_codec_get_drvdata(codec);
 	
 	u32  j = 0;
+	int  ret = 0;
 
 	codec->control_data = dev_get_drvdata(codec->dev->parent);
 	sitar = codec->control_data;
 
 	
-	if (sitar_p->intf_type != WCD9XXX_INTERFACE_TYPE_SLIMBUS)
+	if (sitar_p->intf_type != WCD9XXX_INTERFACE_TYPE_SLIMBUS) {
+		if (event == SND_SOC_DAPM_POST_PMD && (sitar != NULL))
+			sitar_codec_pm_runtime_put(sitar);
 		return 0;
+	}
 	switch (event) {
 	case SND_SOC_DAPM_POST_PMU:
 		for (j = 0; j < ARRAY_SIZE(sitar_dai); j++) {
@@ -2852,11 +3274,14 @@ static int sitar_codec_enable_slimtx(struct snd_soc_dapm_widget *w,
 				break;
 			}
 		}
-		if (sitar_p->dai[j].ch_act == sitar_p->dai[j].ch_tot)
-			wcd9xxx_cfg_slim_sch_tx(sitar,
+		if (( j < ARRAY_SIZE(sitar_dai)) && (sitar_p->dai[j].ch_act == sitar_p->dai[j].ch_tot)) {
+			ret = sitar_codec_enable_chmask(sitar_p, event, j);
+			ret = wcd9xxx_cfg_slim_sch_tx(sitar,
 					sitar_p->dai[j].ch_num,
 					sitar_p->dai[j].ch_tot,
 					sitar_p->dai[j].rate);
+		}
+		usleep_range(50000, 50000);
 		break;
 	case SND_SOC_DAPM_POST_PMD:
 		for (j = 0; j < ARRAY_SIZE(sitar_dai); j++) {
@@ -2868,19 +3293,30 @@ static int sitar_codec_enable_slimtx(struct snd_soc_dapm_widget *w,
 				break;
 			}
 		}
-		if (!sitar_p->dai[j].ch_act) {
+		if ((j < ARRAY_SIZE(sitar_dai)) && (!sitar_p->dai[j].ch_act)) {
 			wcd9xxx_close_slim_sch_tx(sitar,
 					sitar_p->dai[j].ch_num,
 					sitar_p->dai[j].ch_tot);
+			ret = sitar_codec_enable_chmask(sitar_p, event, j);
+			if (ret < 0) {
+				ret = wcd9xxx_disconnect_port(sitar,
+									sitar_p->dai[j].ch_num,
+									sitar_p->dai[j].ch_tot,
+									0);
+				pr_info("%s: Disconnect TX port, ret = %d\n",
+					__func__, ret);
+			}
+
 			sitar_p->dai[j].rate = 0;
 			memset(sitar_p->dai[j].ch_num, 0, (sizeof(u32)*
 					sitar_p->dai[j].ch_tot));
 			sitar_p->dai[j].ch_tot = 0;
+			if (sitar != NULL)
+				sitar_codec_pm_runtime_put(sitar);
 		}
 	}
-	return 0;
+	return ret;
 }
-
 
 static short sitar_codec_read_sta_result(struct snd_soc_codec *codec)
 {
@@ -3121,7 +3557,7 @@ static void btn_lpress_fn(struct work_struct *work)
 	struct sitar_priv *sitar;
 	short bias_value;
 	int dce_mv, sta_mv;
-	struct wcd9xxx *core;
+	struct wcd9xxx *core = NULL;
 
 	pr_debug("%s:\n", __func__);
 
@@ -3329,7 +3765,7 @@ void sitar_mbhc_init(struct snd_soc_codec *codec)
 	int n;
 	u8 *n_cic, *gain;
 
-	pr_err("%s(): ENTER\n", __func__);
+	pr_info("%s(): ENTER\n", __func__);
 	sitar = snd_soc_codec_get_drvdata(codec);
 	generic = SITAR_MBHC_CAL_GENERAL_PTR(sitar->mbhc_cfg.calibration);
 	btn_det = SITAR_MBHC_CAL_BTN_DET_PTR(sitar->mbhc_cfg.calibration);
@@ -3381,6 +3817,9 @@ static bool sitar_mbhc_fw_validate(const struct firmware *fw)
 	u32 cfg_offset;
 	struct sitar_mbhc_imped_detect_cfg *imped_cfg;
 	struct sitar_mbhc_btn_detect_cfg *btn_cfg;
+
+        if (!fw)
+		return false;
 
 	if (fw->size < SITAR_MBHC_CAL_MIN_SIZE)
 		return false;
@@ -4484,7 +4923,7 @@ static irqreturn_t sitar_slimbus_irq(int irq, void *data)
 {
 	struct sitar_priv *priv = data;
 	struct snd_soc_codec *codec = priv->codec;
-	int i, j;
+	int i, j, k, port_id, ch_mask_temp;
 	u8 val;
 
 
@@ -4492,17 +4931,34 @@ static irqreturn_t sitar_slimbus_irq(int irq, void *data)
 		slimbus_value = wcd9xxx_interface_reg_read(codec->control_data,
 			SITAR_SLIM_PGD_PORT_INT_STATUS0 + i);
 		for_each_set_bit(j, &slimbus_value, BITS_PER_BYTE) {
+			port_id = i*8 + j;
 			val = wcd9xxx_interface_reg_read(codec->control_data,
-				SITAR_SLIM_PGD_PORT_INT_SOURCE0 + i*8 + j);
+				SITAR_SLIM_PGD_PORT_INT_SOURCE0 + port_id);
 			if (val & 0x1)
-				pr_err_ratelimited("overflow error on port %x,"
-					" value %x\n", i*8 + j, val);
+				pr_err_ratelimited("overflow error on port %x, value %x\n",
+						port_id, val);
 			if (val & 0x2)
-				pr_err_ratelimited("underflow error on port %x,"
-					" value %x\n", i*8 + j, val);
+				pr_err_ratelimited("underflow error on port %x,value %x\n",
+						port_id, val);
+			if (val & 0x4) {
+				pr_debug("%s: port %x disconnect value %x\n",
+						 __func__, port_id, val);
+				for (k = 0; k < ARRAY_SIZE(sitar_dai); k++) {
+					ch_mask_temp = 1 << port_id;
+					if (ch_mask_temp &
+							priv->dai[k].ch_mask) {
+						priv->dai[k].ch_mask &=
+							~ch_mask_temp;
+						if (!priv->dai[k].ch_mask)
+							wake_up(
+						&priv->dai[k].dai_wait);
+					}
+				}
+			}
 		}
 		wcd9xxx_interface_reg_write(codec->control_data,
-			SITAR_SLIM_PGD_PORT_INT_CLR0 + i, 0xFF);
+			SITAR_SLIM_PGD_PORT_INT_CLR0 + i, slimbus_value);
+		val = 0x0;
 	}
 
 	return IRQ_HANDLED;
@@ -4550,14 +5006,30 @@ static int sitar_handle_pdata(struct sitar_priv *sitar)
 		(pdata->micbias.ldoh_v << 2));
 
 	snd_soc_update_bits(codec, SITAR_A_MICB_CFILT_1_VAL, 0xFC,
-		(k1 << 2));
+		128 );
 	snd_soc_update_bits(codec, SITAR_A_MICB_CFILT_2_VAL, 0xFC,
-		(k2 << 2));
+		128 );
 
 	snd_soc_update_bits(codec, SITAR_A_MICB_1_CTL, 0x60,
 		(pdata->micbias.bias1_cfilt_sel << 5));
 	snd_soc_update_bits(codec, SITAR_A_MICB_2_CTL, 0x60,
 		(pdata->micbias.bias2_cfilt_sel << 5));
+	
+	snd_soc_update_bits(codec, SITAR_A_MICB_1_CTL, 0x10,
+		(pdata->micbias.bias1_cap_mode << 4));
+	snd_soc_update_bits(codec, SITAR_A_MICB_2_CTL, 0x10,
+		(pdata->micbias.bias2_cap_mode << 4));
+
+	
+	if (pdata->micbias.bias1_cap_mode == MICBIAS_EXT_BYP_CAP)
+		snd_soc_update_bits(codec, SITAR_A_MICB_1_CTL, 0x0E, 0x00);
+	else
+		snd_soc_update_bits(codec, SITAR_A_MICB_1_CTL, 0x0E, 0x06);
+
+	if (pdata->micbias.bias2_cap_mode == MICBIAS_EXT_BYP_CAP)
+		snd_soc_update_bits(codec, SITAR_A_MICB_2_CTL, 0x0E, 0x00);
+	else
+		snd_soc_update_bits(codec, SITAR_A_MICB_2_CTL, 0x0E, 0x06);
 
 	for (i = 0; i < 6; j++, i += 2) {
 		if (flag & (0x01 << i)) {
@@ -4630,6 +5102,7 @@ static const struct sitar_reg_mask_val sitar_1_1_reg_defaults[] = {
 	SITAR_REG_VAL(SITAR_A_CDC_RX1_B6_CTL, 0x80),
 
 	SITAR_REG_VAL(SITAR_A_CDC_CLSG_FREQ_THRESH_B3_CTL, 0x1B),
+	SITAR_REG_VAL(SITAR_A_CDC_CLSG_FREQ_THRESH_B4_CTL, 0x5B),
 
 };
 
@@ -4712,6 +5185,7 @@ static int sitar_codec_probe(struct snd_soc_codec *codec)
 	u8 sitar_version;
 	int ch_cnt;
 
+	pr_info("%s\n", __func__);
 	codec->control_data = dev_get_drvdata(codec->dev->parent);
 	control = codec->control_data;
 
@@ -4858,7 +5332,10 @@ static int sitar_codec_probe(struct snd_soc_codec *codec)
 		}
 		sitar->dai[i].ch_num = kzalloc((sizeof(unsigned int)*
 					ch_cnt), GFP_KERNEL);
+		init_waitqueue_head(&sitar->dai[i].dai_wait);
 	}
+
+	INIT_WORK(&sitar->audio_vol_ramp_work.rwork, audio_vol_ramping_func);
 
 	codec->ignore_pmdown_time = 1;
 
@@ -4976,7 +5453,7 @@ static int sitar_resume(struct device *dev)
 	struct platform_device *pdev = to_platform_device(dev);
 	struct sitar_priv *sitar = platform_get_drvdata(pdev);
 	dev_dbg(dev, "%s: system resume\n", __func__);
-	sitar->mbhc_last_resume = jiffies;
+	if (sitar != NULL) sitar->mbhc_last_resume = jiffies;
 	return 0;
 }
 
@@ -4989,7 +5466,7 @@ static const struct dev_pm_ops sitar_pm_ops = {
 static int __devinit sitar_probe(struct platform_device *pdev)
 {
 	int ret = 0;
-	pr_err("%s\n", __func__);
+	pr_info("%s\n", __func__);
 #ifdef CONFIG_DEBUG_FS
 	debugfs_poke = debugfs_create_file("TRRS",
 		S_IFREG | S_IRUGO, NULL, (void *) "TRRS", &codec_debug_ops);

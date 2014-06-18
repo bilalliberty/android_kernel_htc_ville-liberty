@@ -208,6 +208,23 @@ bail:
 }
 EXPORT_SYMBOL(pm8xxx_batt_alarm_disable);
 
+int pm8xxx_batt_alarm_state_set(int enable_lower_comparator,
+				int enable_upper_comparator)
+{
+	if (enable_lower_comparator)
+		pm8xxx_batt_alarm_enable(PM8XXX_BATT_ALARM_LOWER_COMPARATOR);
+	else
+		pm8xxx_batt_alarm_disable(PM8XXX_BATT_ALARM_LOWER_COMPARATOR);
+
+	if (enable_upper_comparator)
+		pm8xxx_batt_alarm_enable(PM8XXX_BATT_ALARM_UPPER_COMPARATOR);
+	else
+		pm8xxx_batt_alarm_disable(PM8XXX_BATT_ALARM_UPPER_COMPARATOR);
+
+	return 0;
+}
+EXPORT_SYMBOL(pm8xxx_batt_alarm_state_set);
+
 int pm8xxx_batt_alarm_threshold_set(
 	enum pm8xxx_batt_alarm_comparator comparator, int threshold_mV)
 {
@@ -545,7 +562,7 @@ EXPORT_SYMBOL(pm8xxx_batt_lower_alarm_threshold_set);
 static int pm8xxx_batt_alarm_reg_init(struct pm8xxx_batt_alarm_chip *chip)
 {
 	int rc = 0;
-
+	pr_info("%s, %d\n", __func__, __LINE__);
 	
 	rc = pm8xxx_readb(chip->dev->parent, chip->cdata.reg_addr_threshold,
 			  &chip->reg_threshold);
@@ -630,6 +647,8 @@ static int __devinit pm8xxx_batt_alarm_probe(struct platform_device *pdev)
 	struct resource *res;
 	int rc;
 
+	pr_info("%s, %d\n", __func__, __LINE__);
+
 	if (the_battalarm) {
 		pr_err("A PMIC battery alarm device has already probed.\n");
 		return -ENODEV;
@@ -694,7 +713,7 @@ static int __devinit pm8xxx_batt_alarm_probe(struct platform_device *pdev)
 	disable_irq(chip->irq);
 
 	platform_set_drvdata(pdev, chip);
-
+	pr_info("%s, %d\n", __func__, __LINE__);
 	return 0;
 
 err_cancel_work:
@@ -705,7 +724,7 @@ err_free_mutex:
 err_free_chip:
 	kfree(chip);
 	the_battalarm = NULL;
-
+pr_info("%s, %d\n", __func__, __LINE__);
 	return rc;
 }
 
@@ -738,6 +757,7 @@ static struct platform_driver pm8xxx_batt_alarm_driver = {
 
 static int __init pm8xxx_batt_alarm_init(void)
 {
+	pr_info("%s, %d\n", __func__, __LINE__);
 	return platform_driver_register(&pm8xxx_batt_alarm_driver);
 }
 

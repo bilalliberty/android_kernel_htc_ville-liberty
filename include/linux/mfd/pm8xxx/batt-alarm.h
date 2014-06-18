@@ -52,6 +52,8 @@ int pm8xxx_batt_alarm_enable(enum pm8xxx_batt_alarm_comparator comparator);
 
 int pm8xxx_batt_alarm_disable(enum pm8xxx_batt_alarm_comparator comparator);
 
+int pm8xxx_batt_alarm_state_set(int enable_lower_comparator,
+				int enable_upper_comparator);
 
 int pm8xxx_batt_alarm_threshold_set(
 	enum pm8xxx_batt_alarm_comparator comparator, int threshold_mV);

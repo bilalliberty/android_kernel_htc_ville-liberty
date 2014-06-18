@@ -32,6 +32,9 @@ struct pm8xxx_vibrator_platform_data {
 	int initial_vibrate_ms;
 	int max_timeout_ms;
 	int level_mV;
+	int threshold;
+	void (*camera_cb) (void);
+	void (*camera_off_cb) (void);
 };
 
 int pm8xxx_vibrator_config(struct pm8xxx_vib_config *vib_config);
