@@ -56,14 +56,29 @@ obj-$(CONFIG_SND_SOC_MSM8X60) += snd-soc-lpass-dma.o
 
 obj-$(CONFIG_SND_SOC_MSM_QDSP6_INTF) += qdsp6/
 
-snd-soc-qdsp6-objs := msm-dai-q6.o msm-pcm-q6.o msm-multi-ch-pcm-q6.o msm-pcm-routing.o msm-dai-fe.o msm-compr-q6.o msm-dai-stub.o
+#snd-soc-qdsp6-objs := msm-dai-q6.o msm-pcm-q6.o msm-multi-ch-pcm-q6.o msm-pcm-routing.o msm-dai-fe.o msm-compr-q6.o msm-dai-stub.o
+#HTC_AUD_LOWL_START
+snd-soc-qdsp6-objs := msm-dai-q6.o msm-pcm-q6.o msm-multi-ch-pcm-q6.o msm-pcm-routing.o msm-dai-fe.o msm-compr-q6.o msm-dai-stub.o msm-lowlatency-pcm-q6.o
+#HTC_AUD_LOWL_END
 obj-$(CONFIG_SND_SOC_MSM_QDSP6_HDMI_AUDIO) += msm-dai-q6-hdmi.o
 obj-$(CONFIG_SND_SOC_VOICE) += msm-pcm-voice.o msm-pcm-voip.o
 snd-soc-qdsp6-objs += msm-pcm-lpa.o msm-pcm-afe.o
 obj-$(CONFIG_SND_SOC_QDSP6) += snd-soc-qdsp6.o
 
 ifdef CONFIG_ARCH_APQ8064
+ifdef CONFIG_ARCH_APQ8064_M7
+snd-soc-msm8960-objs := apq8064_M7.o mpq8064.o
+else ifdef CONFIG_ARCH_APQ8064_M7DXG
+snd-soc-msm8960-objs := apq8064_M7DXG.o mpq8064.o
+else ifdef CONFIG_ARCH_APQ8064_DLXP
+snd-soc-msm8960-objs := apq8064_DLXP.o mpq8064.o
+else ifdef CONFIG_ARCH_APQ8064_DLPDXG
+snd-soc-msm8960-objs := apq8064_DLPDXG.o mpq8064.o
+else ifdef CONFIG_ARCH_APQ8064_T6DXG
+snd-soc-msm8960-objs := apq8064_T6DXG.o mpq8064.o
+else
 snd-soc-msm8960-objs := apq8064.o mpq8064.o
+endif
 obj-$(CONFIG_SND_SOC_MSM8960) += snd-soc-msm8960.o
 else
 # Move board-specific msm8930.o to mach-msm
@@ -75,6 +90,10 @@ else
 #snd-soc-msm8960-objs := msm8960.o
 #obj-$(CONFIG_SND_SOC_MSM8960) += snd-soc-msm8960.o
 #endif
+ifdef CONFIG_SND_SOC_MSM8930_HTC
+snd-soc-msm8960-objs := msm8930_htc.o
+obj-$(CONFIG_SND_SOC_MSM8960) += snd-soc-msm8960.o
+endif
 endif
 
 # Generic MSM drivers

@@ -25,6 +25,13 @@
 #include "q6audio_common.h"
 #include <sound/q6afe.h>
 
+#ifdef CONFIG_MACH_VILLEC2
+#undef pr_info
+#undef pr_err
+#define pr_info(fmt, ...) pr_aud_info(fmt, ##__VA_ARGS__)
+#define pr_err(fmt, ...) pr_aud_err(fmt, ##__VA_ARGS__)
+#endif
+
 #ifndef CONFIG_RTAC
 
 void rtac_add_adm_device(u32 port_id, u32 copp_id, u32 path_id, u32 popp_id) {}
@@ -543,7 +550,7 @@ u32 send_adm_apr(void *buf, u32 opcode)
 		}
 	}
 
-	
+	/* Return data written for SET & data read for GET */
 	if (opcode == ADM_CMD_GET_PARAMS)
 		bytes_returned = rtac_adm_payload_size;
 	else
@@ -709,7 +716,7 @@ u32 send_rtac_asm_apr(void *buf, u32 opcode)
 		}
 	}
 
-	
+	/* Return data written for SET & data read for GET */
 	if (opcode == ASM_STREAM_CMD_GET_PP_PARAMS)
 		bytes_returned = rtac_asm_payload_size;
 	else
@@ -875,7 +882,7 @@ u32 send_voice_apr(u32 mode, void *buf, u32 opcode)
 		}
 	}
 
-	
+	/* Return data written for SET & data read for GET */
 	if (opcode == VOICE_CMD_GET_PARAM)
 		bytes_returned = rtac_voice_payload_size;
 	else

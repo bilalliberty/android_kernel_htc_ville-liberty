@@ -36,11 +36,6 @@
 #include <mach/subsystem_notif.h>
 #include <mach/subsystem_restart.h>
 
-#undef pr_info
-#undef pr_err
-#define pr_info(fmt, ...) pr_aud_info(fmt, ##__VA_ARGS__)
-#define pr_err(fmt, ...) pr_aud_err(fmt, ##__VA_ARGS__)
-
 struct apr_q6 q6;
 struct apr_client client[APR_DEST_MAX][APR_CLIENT_MAX];
 static atomic_t dsp_state;
@@ -55,13 +50,13 @@ struct apr_reset_work {
 	struct work_struct work;
 };
 
-#define APR_Q6_CHECK_TIMEOUT 5000
+#define APR_Q6_CHECK_TIMEOUT 20000
 static struct delayed_work apr_q6_check_work;
 static void apr_q6_check_worker(struct work_struct *work);
 
 static void apr_q6_check_worker(struct work_struct *work)
 {
-	pr_info("%s: %d\n", __func__, q6.state);
+	pr_info("[AUD] %s: %d\n", __func__, q6.state);
 
 	
 	if (q6.state != APR_Q6_LOADED) {
@@ -388,7 +383,7 @@ struct apr_svc *apr_register(char *dest, char *svc_name, apr_fn svc_fn,
 	mutex_lock(&q6.lock);
 	if (q6.state == APR_Q6_NOIMG) {
 
-		pr_info("%s: Load Q6 image\n", __func__);
+		pr_info("[AUD] %s: Load Q6 image\n", __func__);
 		cancel_delayed_work_sync(&apr_q6_check_work);
 		queue_delayed_work(apr_reset_workqueue, &apr_q6_check_work,
 							msecs_to_jiffies(APR_Q6_CHECK_TIMEOUT));
