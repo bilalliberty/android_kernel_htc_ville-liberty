@@ -946,7 +946,9 @@ void msm_rpm_print_sleep_tick(void);
 uint64_t msm_rpm_get_xo_time(void);
 uint64_t msm_rpm_get_vdd_time(void);
 void msm_rpm_set_suspend_flag(bool app_from_suspend);
-
+#ifdef CONFIG_ARCH_MSM8X60
+void msm_rpm_lpm_init(uint32_t *lpm_setting, uint32_t num);
+#endif
 #else
 
 static inline int msm_rpm_local_request_is_outstanding(void)
@@ -1012,6 +1014,11 @@ static inline int msm_rpm_init(struct msm_rpm_platform_data *data)
 }
 
 void msm_rpm_set_suspend_flag(bool app_from_suspend) { };
+
+#ifdef CONFIG_ARCH_MSM8X60
+void msm_rpm_lpm_init(uint32_t *lpm_setting, uint32_t num) { };
+#endif
+
 #endif 
 
 #define RPM_DEBUG_RAM_DEBUG		0x1
@@ -1039,17 +1046,58 @@ typedef enum {
   RPM_STAT_VDD_MIN_TIME = 3,
   RPM_MAX_STATS,
   RPM_HTC_REGION = 63,
+#ifdef CONFIG_ARCH_MSM8X60
+  RPM_LPM_PM8058 = 125,
+  RPM_LPM_PM8901 = 126,
+#endif
 } stat_assignments;
 
 typedef enum {
   RPM_MASTER_0 = 0,
   RPM_MASTER_1,
   RPM_MASTER_2,
+#ifndef CONFIG_ARCH_MSM8X60
   RPM_MASTER_3,
   RPM_MASTER_4,
+#endif
   RPM_MASTER_COUNT,
 } rpm_master_type;
 
+#ifdef CONFIG_ARCH_MSM8X60
+
+typedef struct {
+  uint32_t timestamp;
+} stat_wakeup_info;
+
+typedef struct {
+  uint32_t timestamp;
+  uint32_t cxo:1;
+  uint32_t pxo:1;
+  uint32_t vdd_mem:12;
+  uint32_t vdd_dig:12;
+  uint32_t reversed:6;
+} stat_sleep_info;
+
+typedef struct {
+  uint32_t num_stats;
+  rpm_stat  stats[RPM_MAX_STATS];
+  uint32_t reversed1[62 - ((sizeof(rpm_stat)/sizeof(uint32_t)) * RPM_MAX_STATS)];
+#ifdef CONFIG_ARCH_MSM8X60_LTE
+  uint32_t reversed2[35];
+  htc_sleep_info_ex sleep_info_ex[RPM_MASTER_COUNT];
+#else
+  uint32_t reversed2[44];
+#endif
+  uint32_t app_from_suspend;
+  stat_wakeup_info wake_info[RPM_MASTER_COUNT];
+  stat_sleep_info sleep_info[RPM_MASTER_COUNT];
+  uint32_t mpm_trigger[RPM_MASTER_COUNT][2];
+  uint32_t mpm_int_status[2];
+  uint32_t lpm_pm8058;
+  uint32_t lpm_pm8901;
+} stats_blob;
+
+#else
 typedef struct {
   uint32_t count;
   uint32_t sleep_timestamp;
@@ -1075,6 +1123,7 @@ typedef struct {
   uint32_t rpm_debug_mode;
   stat_sleep_info sleep_info[RPM_MASTER_COUNT];
 } stats_blob;
+#endif
 
 int htc_get_xo_vdd_min_info(uint32_t *xo_count, uint64_t *xo_time, uint32_t *vddmin_count, uint64_t *vddmin_time);
 

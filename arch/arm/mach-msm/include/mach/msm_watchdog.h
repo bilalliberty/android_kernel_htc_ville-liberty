@@ -73,11 +73,13 @@ void pet_watchdog(void);
 void set_dog_pet_footprint(void);
 int msm_watchdog_suspend(struct device *dev);
 int msm_watchdog_resume(struct device *dev);
+void msm_watchdog_check_pet(unsigned long long timestamp);
 #else
 static inline void pet_watchdog(void) { }
-static inline int msm_watchdog_suspend(struct device *dev) { }
-static inline int msm_watchdog_resume(struct device *dev) { }
+static inline int msm_watchdog_suspend(struct device *dev) { return 0; }
+static inline int msm_watchdog_resume(struct device *dev) { return 0; }
 static inline void set_dog_pet_footprint(void) { }
+static inline void msm_watchdog_check_pet(unsigned long long timestamp) {}
 #endif
 
 #endif

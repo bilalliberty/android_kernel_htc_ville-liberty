@@ -86,7 +86,7 @@ enum sps_option {
 	SPS_O_STREAMING = 0x00010000,  
 	
 	SPS_O_IRQ_MTI   = 0x00020000,
-	
+	/* NWD bit written with EOT for BAM2BAM producer pipe */
 	SPS_O_WRITE_NWD   = 0x00040000,
 
 	
@@ -173,6 +173,18 @@ struct sps_iovec {
 	u32 flags:16;
 };
 
+/**
+ * This data type corresponds to the native Command Element
+ * supported by SPS hardware
+ *
+ * @addr - register address.
+ * @command - command type.
+ * @data - for write command: content to be written into peripheral register.
+ *         for read command: dest addr to write peripheral register value to.
+ * @mask - register mask.
+ * @reserved - for future usage.
+ *
+ */
 struct sps_command_element {
 	u32 addr:24;
 	u32 command:8;
@@ -302,6 +314,23 @@ struct sps_dma_chan {
 	u32 src_pipe_index;
 };
 
+/**
+ * This struct is an argument passed payload when triggering a callback event
+ * object registered for an SPS connection end point.
+ *
+ * @user - Pointer registered with sps_register_event().
+ *
+ * @event_id - Which event.
+ *
+ * @iovec - The associated I/O vector. If the end point is a system-mode
+ * producer, the size will reflect the actual number of bytes written to the
+ * buffer by the pipe. NOTE: If this I/O vector was part of a set submitted to
+ * sps_transfer(), then the vector array itself will be	updated with all of
+ * the actual counts.
+ *
+ * @user - Pointer registered with the transfer.
+ *
+ */
 struct sps_event_notify {
 	void *user;
 
@@ -361,6 +390,25 @@ struct sps_timer_result {
 struct sps_pipe;	
 
 #ifdef CONFIG_SPS
+/**
+ * Register a BAM device
+ *
+ * This function registers a BAM device with the SPS driver. For each
+ *peripheral that includes a BAM, the peripheral driver must register
+ * the BAM with the SPS driver.
+ *
+ * A requirement is that the peripheral driver must remain attached
+ * to the SPS driver until the BAM is deregistered. Otherwise, the
+ * system may attempt to unload the SPS driver. BAM registrations would
+ * be lost.
+ *
+ * @bam_props - Pointer to struct for BAM device properties.
+ *
+ * @dev_handle - Device handle will be written to this location (output).
+ *
+ * @return 0 on success, negative value on error
+ *
+ */
 int sps_register_bam_device(const struct sps_bam_props *bam_props,
 			    u32 *dev_handle);
 
@@ -405,6 +453,23 @@ int sps_set_config(struct sps_pipe *h, struct sps_connect *config);
 int sps_set_owner(struct sps_pipe *h, enum sps_owner owner,
 		  struct sps_satellite *connect);
 
+/**
+ * Allocate a BAM DMA channel
+ *
+ * This function allocates a BAM DMA channel. A "BAM DMA" is a special
+ * DMA peripheral with a BAM front end. The DMA peripheral acts as a conduit
+ * for data to flow into a consumer pipe and then out of a producer pipe.
+ * It's primarily purpose is to serve as a path for interprocessor communication
+ * that allows each processor to control and protect it's own memory space.
+ *
+ * @alloc - Pointer to struct for BAM DMA channel allocation properties.
+ *
+ * @chan - Allocated channel information will be written to this
+ *  location (output).
+ *
+ * @return 0 on success, negative value on error
+ *
+ */
 int sps_alloc_dma_chan(const struct sps_alloc_dma_chan *alloc,
 		       struct sps_dma_chan *chan);
 
@@ -427,6 +492,8 @@ int sps_setup_bam2bam_fifo(struct sps_mem_buffer *mem_buffer,
 		  u32 addr, u32 size, int use_offset);
 
 int sps_get_unused_desc_num(struct sps_pipe *h, u32 *desc_num);
+
+int sps_get_bam_debug_info(u32 dev, u32 option);
 
 #else
 static inline int sps_register_bam_device(const struct sps_bam_props

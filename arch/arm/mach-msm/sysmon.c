@@ -174,6 +174,29 @@ out:
 	return ret;
 }
 
+int sysmon_send_shutdown(enum subsys_id dest_ss)
+{
+	struct sysmon_subsys *ss = &subsys[dest_ss];
+	const char tx_buf[] = "system:shutdown";
+	const char expect[] = "system:ack";
+	size_t prefix_len = ARRAY_SIZE(expect) - 1;
+	int ret;
+
+	if (dest_ss < 0 || dest_ss >= SYSMON_NUM_SS)
+		return -EINVAL;
+
+	mutex_lock(&ss->lock);
+	ret = sysmon_send_msg(ss, tx_buf, ARRAY_SIZE(tx_buf));
+	if (ret)
+		goto out;
+
+	if (strncmp(ss->rx_buf, expect, prefix_len))
+		ret = -ENOSYS;
+out:
+	mutex_unlock(&ss->lock);
+	return ret;
+}
+
 int sysmon_get_reason(enum subsys_id dest_ss, char *buf, size_t len)
 {
 	struct sysmon_subsys *ss = &subsys[dest_ss];
@@ -257,8 +280,12 @@ static int sysmon_probe(struct platform_device *pdev)
 	case TRANSPORT_HSIC:
 		if (pdev->id < SMD_NUM_TYPE)
 			return -EINVAL;
-
+#if defined(CONFIG_BUILD_EDIAG)
+		pr_info("SYSMON is supposed to be used as char dev with specific purpose.\n");
+		ret = -ENODEV;
+#else
 		ret = hsic_sysmon_open(HSIC_SYSMON_DEV_EXT_MODEM);
+#endif
 		if (ret) {
 			pr_err("HSIC open failed\n");
 			return ret;

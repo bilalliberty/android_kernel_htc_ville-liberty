@@ -33,6 +33,18 @@ enum {
 };
 
 
+/*
+ * sdio_cmux_open - Open the mux channel
+ *
+ * @id: Mux Channel id to be opened
+ * @receive_cb: Notification when data arrives.  Parameters are data received,
+ *	size of data, private context pointer.
+ * @write_done: Notification when data is written.  Parameters are data written,
+ *	size of data, private context pointer.  Please note that the data
+ *	written pointer will always be NULL as the cmux makes an internal copy
+ *	of the data.
+ * @priv: caller's private context pointer
+ */
 int sdio_cmux_open(const int id,
 		   void (*receive_cb)(void *, int, void *),
 		   void (*write_done)(void *, int, void *),
@@ -43,6 +55,13 @@ int sdio_cmux_close(int id);
 
 int sdio_cmux_write_avail(int id);
 
+/*
+ * sdio_cmux_write - Write the data onto the CMUX channel
+ *
+ * @id: Channel id onto which the data has to be written
+ * @data: Starting address of the data buffer to be written
+ * @len: Length of the data to be written
+ */
 int sdio_cmux_write(int id, void *data, int len);
 
 int sdio_cmux_tiocmget(int id);

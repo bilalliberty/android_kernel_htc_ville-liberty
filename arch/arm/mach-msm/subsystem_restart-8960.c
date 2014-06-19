@@ -33,6 +33,7 @@
 #include <mach/socinfo.h>
 #include <mach/subsystem_notif.h>
 #include <mach/subsystem_restart.h>
+#include <mach/restart.h>
 #include <mach/board_htc.h>
 #include <mach/msm_smsm.h>
 
@@ -105,6 +106,17 @@ struct workqueue_struct *ssr_wq;
 
 static wait_queue_head_t subsystem_restart_wq;
 static char subsystem_restart_reason[256];
+
+#define RD_BUF_SIZE			  256
+#define MODEM_ERRMSG_LIST_LEN 10
+
+struct msm_msr_info {
+	int valid;
+	struct timespec msr_time;
+	char modem_errmsg[RD_BUF_SIZE];
+};
+int msm_msr_index = 0;
+static struct msm_msr_info msr_info_list[MODEM_ERRMSG_LIST_LEN];
 
 static enum {
 	SUBSYSTEM_RESTART_STATE_NONE,
@@ -467,6 +479,14 @@ static void __subsystem_restart(struct subsys_data *subsys)
 	if (!strncmp(subsys->name, "modem",
 				SUBSYS_NAME_MAX_LENGTH)) {
 		smd_diag_ssr(subsystem_restart_reason);
+	
+		msr_info_list[msm_msr_index].valid = 1;
+		msr_info_list[msm_msr_index].msr_time = current_kernel_time();
+		snprintf(msr_info_list[msm_msr_index].modem_errmsg, RD_BUF_SIZE, "%s", subsystem_restart_reason);
+		if(++msm_msr_index >= MODEM_ERRMSG_LIST_LEN) {
+		msm_msr_index = 0;
+	
+			}
 	}
 	else {
 		sprintf(subsystem_restart_reason, "%s fatal", subsys->name);
@@ -519,12 +539,7 @@ int subsystem_restart(const char *subsys_name)
 
 	if (restart_level != RESET_SOC) {
 		
-#if defined(CONFIG_MSM_SSR_INDEPENDENT)
-		if ((!subsys->enable_ssr) ||
-				((get_radio_flag() & 0x8) && (!(get_kernel_flag() & KERNEL_FLAG_ENABLE_SSR_MODEM)) && (!strncmp(subsys_name, "modem", SUBSYS_NAME_MAX_LENGTH)))) {
-#else
 		if (!subsys->enable_ssr) {
-#endif
 			restart_level = RESET_SOC;
 			pr_warn("%s: %s did not enable SSR, reset SOC instead.\n",
 					__func__, subsys_name);
@@ -656,6 +671,38 @@ static int __init ssr_init_soc_restart_orders(void)
 	return 0;
 }
 
+void subsystem_restart_reason_nonblock_init(void)
+{
+	int i = 0;
+	msm_msr_index = 0;
+	for( i=0; i<MODEM_ERRMSG_LIST_LEN; i++ ) {
+		msr_info_list[i].valid = 0;
+		memset(msr_info_list[i].modem_errmsg, 0, RD_BUF_SIZE);
+	}
+}
+
+static ssize_t subsystem_restart_reason_nonblock_show(struct kobject *kobj,
+		struct kobj_attribute *attr, char *buf)
+{
+
+	int i = 0;
+	char tmp[RD_BUF_SIZE+30];
+
+	for( i=0; i<MODEM_ERRMSG_LIST_LEN; i++ ) {
+		if( msr_info_list[i].valid != 0 ) {
+			
+			snprintf(tmp, RD_BUF_SIZE+30, "%ld-%s|\n\r", msr_info_list[i].msr_time.tv_sec, msr_info_list[i].modem_errmsg);
+			strcat(buf, tmp);
+			memset(tmp, 0, RD_BUF_SIZE+30);
+		}
+		msr_info_list[i].valid = 0;
+		memset(msr_info_list[i].modem_errmsg, 0, RD_BUF_SIZE);
+	}
+	strcat(buf, "\n\r\0");
+
+	return strlen(buf);
+}
+
 static ssize_t subsystem_restart_reason_show(struct kobject *kobj,
 		struct kobj_attribute *attr, char *buf)
 {
@@ -682,7 +729,8 @@ static ssize_t subsystem_restart_modem_trigger_show(struct kobject *kobj,
 	char *s = buf;
 	int ret = 0;
 
-	if (get_kernel_flag() & KERNEL_FLAG_ENABLE_SSR_MODEM)
+	#ifdef CONFIG_MSM_MODEM_SSR_ENABLE
+	if (!(get_kernel_flag() & KERNEL_FLAG_ENABLE_SSR_MODEM))
 	{
 		pr_info("%s: trigger modem restart\n", __func__);
 
@@ -700,13 +748,37 @@ static ssize_t subsystem_restart_modem_trigger_show(struct kobject *kobj,
 	}
 	else
 	{
-		pr_info("%s: kernel_flag = 0x%X\n", __func__, (int)get_kernel_flag());
-		s += sprintf(buf, "Please check whether kernel flag 6 is 0x800");
+		pr_info("%s: modem restart did not enable", __func__);
+		s += sprintf(buf, "Please check whether modem restart enable or not");
 	}
+	#else
+	if ((get_kernel_flag() & KERNEL_FLAG_ENABLE_SSR_MODEM))
+	{
+		pr_info("%s: trigger modem restart\n", __func__);
+
+		ret = smsm_change_state_ssr(SMSM_APPS_STATE, 0, SMSM_RESET, KERNEL_FLAG_ENABLE_SSR_MODEM);
+
+		if(ret == 0)
+			pr_info("%s: set smsm state SMS_RESET success\n", __func__);
+		else
+		{
+			pr_info("%s: set smsm state SMS_RESET faild => ret = %d\n", __func__, ret);
+			s += sprintf(buf, "Failed");
+			return s - buf;
+		}
+		s += sprintf(buf, "Success");
+	}
+	else
+	{
+		pr_info("%s: modem restart did not enable", __func__);
+		s += sprintf(buf, "Please check whether modem restart enable or not");
+	}
+	#endif
 
 	return s - buf;
 }
 
+#ifdef CONFIG_MSM_WCNSS_SSR_ENABLE
 static ssize_t subsystem_restart_wcnss_trigger_show(struct kobject *kobj,
 				      struct kobj_attribute *attr, char *buf)
 {
@@ -737,6 +809,28 @@ static ssize_t subsystem_restart_wcnss_trigger_show(struct kobject *kobj,
 
 	return s - buf;
 }
+#endif
+
+#ifdef CONFIG_MSM_MODEM_SSR_ENABLE
+static ssize_t subsystem_restart_modem_RIL_trigger_show(struct kobject *kobj,
+					struct kobj_attribute *attr, char *buf)
+{
+	char *s = buf;
+
+	if(get_kernel_flag() & KERNEL_FLAG_ENABLE_SSR_MODEM)
+	{
+		pr_info("Modem seems freeze since no reponse for RIL SMD cmd and trigger oem-95\n");
+		msm_restart(RESTART_MODE_LEGECY, "oem-95");
+	}
+	else
+	{
+		pr_info("Modem seems freeze since no reponse for RIL SMD cmd and trigger modem SSR\n");
+		subsystem_restart("modem");
+	}
+
+	return s - buf;
+}
+#endif
 
 #define subsystem_restart_ro_attr(_name) \
 	static struct kobj_attribute _name##_attr = {  \
@@ -749,13 +843,25 @@ static ssize_t subsystem_restart_wcnss_trigger_show(struct kobject *kobj,
 	}
 
 subsystem_restart_ro_attr(subsystem_restart_reason);
+subsystem_restart_ro_attr(subsystem_restart_reason_nonblock);
 subsystem_restart_ro_attr(subsystem_restart_modem_trigger);
+#ifdef CONFIG_MSM_WCNSS_SSR_ENABLE
 subsystem_restart_ro_attr(subsystem_restart_wcnss_trigger);
+#endif
+#ifdef CONFIG_MSM_MODEM_SSR_ENABLE
+subsystem_restart_ro_attr(subsystem_restart_modem_RIL_trigger);
+#endif
 
 static struct attribute *g[] = {
 	&subsystem_restart_reason_attr.attr,
+	&subsystem_restart_reason_nonblock_attr.attr,
 	&subsystem_restart_modem_trigger_attr.attr,
+#ifdef CONFIG_MSM_WCNSS_SSR_ENABLE
 	&subsystem_restart_wcnss_trigger_attr.attr,
+#endif
+#ifdef CONFIG_MSM_MODEM_SSR_ENABLE
+	&subsystem_restart_modem_RIL_trigger_attr.attr,
+#endif
 	NULL,
 };
 
@@ -786,7 +892,9 @@ static int __init subsys_restart_init(void)
 
 	init_waitqueue_head(&subsystem_restart_wq);
 	subsystem_restart_state = SUBSYSTEM_RESTART_STATE_NONE;
-
+	
+	subsystem_restart_reason_nonblock_init();
+	
 	properties_kobj = kobject_create_and_add("subsystem_restart_properties", NULL);
 	if (properties_kobj) {
 		ret = sysfs_create_group(properties_kobj, &attr_group);

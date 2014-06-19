@@ -27,6 +27,7 @@
 #include <mach/subsystem_restart.h>
 #include <mach/subsystem_notif.h>
 #include <mach/socinfo.h>
+#include <mach/restart.h>
 #include <mach/msm_smsm.h>
 #include <mach/board_htc.h>
 
@@ -85,7 +86,13 @@ static void smsm_state_cb(void *data, uint32_t old_state, uint32_t new_state)
 
 	if (new_state & SMSM_RESET) {
 		pr_err("Probable fatal error on the modem.\n");
-		restart_modem();
+		if (smd_smsm_erase_efs()) {
+			pr_err("Unrecoverable efs, need to reboot and erase"
+					"modem_st1/st2 partitions...\n");
+			msm_restart(RESTART_MODE_ERASE_EFS, "force-hard");
+		} else {
+			restart_modem();
+		}
 	}
 }
 
@@ -156,7 +163,7 @@ static int modem_ramdump(int enable,
 {
 	int ret = 0;
 
-	if (enable) {
+	if (enable&&(get_radio_flag()&0x8)) {
 		ret = do_ramdump(modemsw_ramdump_dev, modemsw_segments,
 			ARRAY_SIZE(modemsw_segments));
 
@@ -315,8 +322,14 @@ static int __init modem_8960_init(void)
 		goto out;
 	}
 
-	if (get_kernel_flag() & KERNEL_FLAG_ENABLE_SSR_MODEM)
-		enable_modem_ssr = 1;
+
+	if (get_kernel_flag() & KERNEL_FLAG_ENABLE_SSR_MODEM) {
+	#ifdef CONFIG_MSM_MODEM_SSR_ENABLE
+		enable_modem_ssr = 0;
+	#else
+                enable_modem_ssr = 1;
+	#endif
+	}
 
 	pr_info("%s: enable_modem_ssr set to %d\n", __func__, enable_modem_ssr);
 
