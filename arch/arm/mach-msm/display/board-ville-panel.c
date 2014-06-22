@@ -919,6 +919,7 @@ static int mipi_dsi_panel_power(int on)
 			PR_DISP_ERR("set_optimum_mode %s failed, rc=%d\n", lcm_str, rc);
 			return -EINVAL;
 		}
+		msleep(5);
 
 		rc = regulator_set_optimum_mode(v_dsivdd, 100000);
 		if (rc < 0) {
