@@ -49,17 +49,17 @@
 
 #ifdef CONFIG_FB_MSM_TRIPLE_BUFFER
 #define MSM_FB_PRIM_BUF_SIZE \
-      (roundup((roundup(1280, 32) * roundup(720, 32) * 4), 4096) * 3)
+      (roundup((roundup(1920, 32) * roundup(1200, 32) * 4), 4096) * 3)
       
 #else
 #define MSM_FB_PRIM_BUF_SIZE \
-      (roundup((roundup(1280, 32) * roundup(720, 32) * 4), 4096) * 2)
+      (roundup((roundup(1920, 32) * roundup(1200, 32) * 4), 4096) * 2)
       
 #endif
 #define MSM_FB_SIZE roundup(MSM_FB_PRIM_BUF_SIZE, 4096)
 #ifdef CONFIG_FB_MSM_OVERLAY0_WRITEBACK
 #define MSM_FB_OVERLAY0_WRITEBACK_SIZE \
-      roundup((roundup(1280, 32) * roundup(720, 32) * 3 * 2), 4096)
+      roundup((roundup(1920, 32) * roundup(1200, 32) * 3 * 2), 4096)
 #else
 #define MSM_FB_OVERLAY0_WRITEBACK_SIZE (0)
 #endif  
@@ -79,6 +79,8 @@ static int ville_detect_panel(const char *name)
 
 	return -ENODEV;
 }
+
+
 
 static struct msm_bus_vectors mdp_init_vectors[] = {
 	{
@@ -128,6 +130,7 @@ static struct msm_bus_vectors mdp_1080p_vectors[] = {
 	},
 };
 
+#if 1
 static struct msm_bus_vectors mdp_composition_1_vectors[] = {
 	
 	{
@@ -158,6 +161,8 @@ static struct msm_bus_vectors mdp_composition_3_vectors[] = {
 		.ib = 1280 * 736 * 4 * 60 * 4 * 1.5,
 	},
 };
+#endif
+
 
 static struct msm_bus_paths mdp_bus_scale_usecases[] = {
 	{
@@ -220,6 +225,7 @@ int ville_mdp_gamma(void)
 
 static struct msm_panel_common_pdata mdp_pdata = {
 	.gpio = MDP_VSYNC_GPIO,
+
 #ifdef CONFIG_MSM_BUS_SCALING
 	.mdp_bus_scale_table = &mdp_bus_scale_pdata,
 #endif

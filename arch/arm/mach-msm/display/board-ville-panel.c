@@ -497,17 +497,13 @@ static inline void ville_mipi_dsi_set_backlight(struct msm_fb_data_type *mfd)
 	else if (panel_type == PANEL_ID_VILLE_SAMSUNG_SG)
 		ville_shrink_pwm(mfd->bl_level);
 
-#if 0
-	if (mdp4_overlay_dsi_state_get() <= ST_DSI_SUSPEND) {
-		mutex_unlock(&mfd->dma->ov_mutex);
-		return;
-	}
-#endif
 
 	if (panel_type == PANEL_ID_VILLE_SAMSUNG_SG || panel_type == PANEL_ID_VILLE_SAMSUNG_SG_C2) {
 		cmdreq.cmds = samsung_cmd_backlight_cmds;
 		cmdreq.cmds_cnt = ARRAY_SIZE(samsung_cmd_backlight_cmds);
 		cmdreq.flags = CMD_REQ_COMMIT;
+			if (mfd && mfd->panel_info.type == MIPI_CMD_PANEL)
+		cmdreq.flags |= CMD_CLK_CTRL;
 		cmdreq.rlen = 0;
 		cmdreq.cb = NULL;
 		mipi_dsi_cmdlist_put(&cmdreq);
@@ -555,6 +551,8 @@ static int ville_lcd_on(struct platform_device *pdev)
 				cmdreq.cmds_cnt = ARRAY_SIZE(samsung_cmd_on_cmds);
 			}
 			cmdreq.flags = CMD_REQ_COMMIT;
+			if (mfd && mfd->panel_info.type == MIPI_CMD_PANEL)
+			cmdreq.flags |= CMD_CLK_CTRL;
 			cmdreq.rlen = 0;
 			cmdreq.cb = NULL;
 			mipi_dsi_cmdlist_put(&cmdreq);
@@ -579,6 +577,8 @@ static void ville_display_on(struct msm_fb_data_type *mfd)
 		cmdreq.cmds_cnt = ARRAY_SIZE(samsung_display_on_cmds);
 	}
 	cmdreq.flags = CMD_REQ_COMMIT;
+		if (mfd && mfd->panel_info.type == MIPI_CMD_PANEL)
+			cmdreq.flags |= CMD_CLK_CTRL;
 	cmdreq.rlen = 0;
 	cmdreq.cb = NULL;
 	mipi_dsi_cmdlist_put(&cmdreq);
@@ -616,6 +616,8 @@ static int ville_lcd_off(struct platform_device *pdev)
 		cmdreq.cmds_cnt = ARRAY_SIZE(auo_display_off_cmds);
 	}
 	cmdreq.flags = CMD_REQ_COMMIT;
+	if (mfd && mfd->panel_info.type == MIPI_CMD_PANEL)
+			cmdreq.flags |= CMD_CLK_CTRL;
 	cmdreq.rlen = 0;
 	cmdreq.cb = NULL;
 
@@ -857,27 +859,27 @@ static int mipi_dsi_panel_power(int on)
 	char *lcm_str = "8921_l11";
 	char *lcmio_str = "8921_lvs5";
 	char *dsivdd_str = "8921_l2";
-
-	
+        
+        printk(KERN_ERR  "[DISP] %s +++\n", __func__);
+	/* To avoid system crash in shutdown for non-panel case */
 	if (panel_type == PANEL_ID_NONE)
 		return -ENODEV;
 
-	PR_DISP_INFO("%s: state : %d\n", __func__, on);
+	printk(KERN_INFO "%s: state : %d\n", __func__, on);
 
 	if (!dsi_power_on) {
-
 		v_lcm = regulator_get(&msm_mipi_dsi1_device.dev,
 				lcm_str);
-		if (IS_ERR(v_lcm)) {
-			PR_DISP_ERR("could not get %s, rc = %ld\n",
+		if (IS_ERR_OR_NULL(v_lcm)) {
+			printk(KERN_ERR "could not get %s, rc = %ld\n",
 				lcm_str, PTR_ERR(v_lcm));
 			return -ENODEV;
 		}
 
 		v_lcmio = regulator_get(&msm_mipi_dsi1_device.dev,
 				lcmio_str);
-		if (IS_ERR(v_lcmio)) {
-			PR_DISP_ERR("could not get %s, rc = %ld\n",
+		if (IS_ERR_OR_NULL(v_lcmio)) {
+			printk(KERN_ERR "could not get %s, rc = %ld\n",
 				lcmio_str, PTR_ERR(v_lcmio));
 			return -ENODEV;
 		}
@@ -885,27 +887,27 @@ static int mipi_dsi_panel_power(int on)
 
 		v_dsivdd = regulator_get(&msm_mipi_dsi1_device.dev,
 				dsivdd_str);
-		if (IS_ERR(v_dsivdd)) {
-			PR_DISP_ERR("could not get %s, rc = %ld\n",
+		if (IS_ERR_OR_NULL(v_dsivdd)) {
+			printk(KERN_ERR "could not get %s, rc = %ld\n",
 				dsivdd_str, PTR_ERR(v_dsivdd));
 			return -ENODEV;
 		}
 
 		rc = regulator_set_voltage(v_lcm, 3000000, 3000000);
 		if (rc) {
-			PR_DISP_ERR("%s#%d: set_voltage %s failed, rc=%d\n", __func__, __LINE__, lcm_str, rc);
+			printk(KERN_ERR "%s#%d: set_voltage %s failed, rc=%d\n", __func__, __LINE__, lcm_str, rc);
 			return -EINVAL;
 		}
 
 		rc = regulator_set_voltage(v_dsivdd, 1200000, 1200000);
 		if (rc) {
-			PR_DISP_ERR("%s#%d: set_voltage %s failed, rc=%d\n", __func__, __LINE__, dsivdd_str, rc);
+			printk(KERN_ERR "%s#%d: set_voltage %s failed, rc=%d\n", __func__, __LINE__, dsivdd_str, rc);
 			return -EINVAL;
 		}
 
 		rc = gpio_request(VILLE_GPIO_LCD_RSTz, "LCM_RST_N");
 		if (rc) {
-			PR_DISP_ERR("%s:LCM gpio %d request failed, rc=%d\n", __func__,  VILLE_GPIO_LCD_RSTz, rc);
+			printk(KERN_ERR "%s:LCM gpio %d request failed, rc=%d\n", __func__,  VILLE_GPIO_LCD_RSTz, rc);
 			return -EINVAL;
 		}
 
@@ -913,75 +915,73 @@ static int mipi_dsi_panel_power(int on)
 	}
 
 	if (on) {
-		PR_DISP_INFO("%s: on\n", __func__);
+		printk(KERN_INFO "%s: on\n", __func__);
 		rc = regulator_set_optimum_mode(v_lcm, 100000);
 		if (rc < 0) {
-			PR_DISP_ERR("set_optimum_mode %s failed, rc=%d\n", lcm_str, rc);
+			printk(KERN_ERR "set_optimum_mode %s failed, rc=%d\n", lcm_str, rc);
 			return -EINVAL;
 		}
-		msleep(5);
 
 		rc = regulator_set_optimum_mode(v_dsivdd, 100000);
 		if (rc < 0) {
-			PR_DISP_ERR("set_optimum_mode %s failed, rc=%d\n", dsivdd_str, rc);
+			printk(KERN_ERR "set_optimum_mode %s failed, rc=%d\n", dsivdd_str, rc);
 			return -EINVAL;
 		}
 
 		rc = regulator_enable(v_dsivdd);
 		if (rc) {
-			PR_DISP_ERR("enable regulator %s failed, rc=%d\n", dsivdd_str, rc);
+			printk(KERN_ERR "enable regulator %s failed, rc=%d\n", dsivdd_str, rc);
 			return -ENODEV;
 		}
-		hr_msleep(1);
+		usleep(1);
 		rc = regulator_enable(v_lcmio);
 		if (rc) {
-			PR_DISP_ERR("enable regulator %s failed, rc=%d\n", lcmio_str, rc);
+			printk(KERN_ERR "enable regulator %s failed, rc=%d\n", lcmio_str, rc);
 			return -ENODEV;
 		}
 
 		rc = regulator_enable(v_lcm);
 		if (rc) {
-			PR_DISP_ERR("enable regulator %s failed, rc=%d\n", lcm_str, rc);
+			printk(KERN_ERR "enable regulator %s failed, rc=%d\n", lcm_str, rc);
 			return -ENODEV;
 		}
 
 		if (!mipi_lcd_on) {
-			hr_msleep(10);
+			usleep(10);
 			gpio_set_value(VILLE_GPIO_LCD_RSTz, 1);
-			hr_msleep(1);
+			usleep(1);
 			gpio_set_value(VILLE_GPIO_LCD_RSTz, 0);
-			hr_msleep(35);
+			usleep(35);
 			gpio_set_value(VILLE_GPIO_LCD_RSTz, 1);
 		}
-		hr_msleep(60);
+		usleep(60);
 
 		bPanelPowerOn = true;
-
 	} else {
-		PR_DISP_INFO("%s: off\n", __func__);
+		printk(KERN_INFO "%s: off\n", __func__);
 		if (!bPanelPowerOn) return 0;
 		hr_msleep(100);
 		gpio_set_value(VILLE_GPIO_LCD_RSTz, 0);
 		hr_msleep(10);
 
 		if (regulator_disable(v_dsivdd)) {
-			PR_DISP_ERR("%s: Unable to enable the regulator: %s\n", __func__, dsivdd_str);
+			printk(KERN_ERR "%s: Unable to enable the regulator: %s\n", __func__, dsivdd_str);
 			return -EINVAL;
 		}
 
 		if (regulator_disable(v_lcm)) {
-			PR_DISP_ERR("%s: Unable to enable the regulator: %s\n", __func__, lcm_str);
+			printk(KERN_ERR "%s: Unable to enable the regulator: %s\n", __func__, lcm_str);
 			return -EINVAL;
 		}
 		hr_msleep(5);
 		if (regulator_disable(v_lcmio)) {
-			PR_DISP_ERR("%s: Unable to enable the regulator: %s\n", __func__, lcmio_str);
+			printk(KERN_ERR "%s: Unable to enable the regulator: %s\n", __func__, lcmio_str);
 			return -EINVAL;
 		}
 
 		rc = regulator_set_optimum_mode(v_dsivdd, 100);
 		if (rc < 0) {
-			PR_DISP_ERR("%s: Unable to enable the regulator: %s\n", __func__, dsivdd_str);
+			printk(KERN_ERR "%s: Unable to enable the regulator: %s\n", __func__, dsivdd_str);
 			return -EINVAL;
 		}
 
@@ -989,6 +989,8 @@ static int mipi_dsi_panel_power(int on)
 	}
 	return 0;
 }
+
+
 
 static struct mipi_dsi_platform_data mipi_dsi_pdata = {
 	.vsync_gpio = VILLE_GPIO_LCD_TE,
