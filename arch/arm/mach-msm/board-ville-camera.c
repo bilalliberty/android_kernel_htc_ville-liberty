@@ -206,37 +206,9 @@ struct msm_camera_device_platform_data msm_camera_csi_device_data[] = {
 #ifdef CONFIG_MSM_CAMERA_FLASH
 int flashlight_control(int mode)
 {
+pr_info("%s, linear led, mode=%d", __func__, mode);
 #ifdef CONFIG_FLASHLIGHT_TPS61310
-	int	rc;
-	static int brightness = 255;
-	static int backlight_off = 0;
-
-	pr_info("[CAM] %s, linear led, mode %d backlight_off %d", __func__, mode, backlight_off);
-
-	if (mode != FL_MODE_PRE_FLASH && mode != FL_MODE_OFF) {
-		if (!backlight_off) {
-			
-			brightness = led_brightness_value_get("lcd-backlight");
-			if (brightness >= 0 && brightness <= 255) {
-				pr_info("[CAM] %s, Turn off backlight before flashlight, brightness %d", __func__, brightness);
-				led_brightness_value_set("lcd-backlight", 0);
-				backlight_off = 1;
-			} else
-				pr_err("[CAM] %s, Invalid brightness value!! brightness %d", __func__, brightness);
-		}
-	}
-
-	rc = tps61310_flashlight_control(mode);
-
-	if (mode == FL_MODE_PRE_FLASH || mode == FL_MODE_OFF) {
-		if(backlight_off) {
-			pr_info("[CAM] %s, Turn on backlight after flashlight, brightness %d", __func__, brightness);
-			led_brightness_value_set("lcd-backlight", brightness);
-			backlight_off = 0;
-		}
-	}
-
-	return rc;
+	return tps61310_flashlight_control(mode);
 #else
 	return 0;
 #endif
@@ -743,7 +715,8 @@ static struct camera_flash_info msm_camera_sensor_s5k3h2yx_flash_info = {
 
 static struct camera_flash_cfg msm_camera_sensor_s5k3h2yx_flash_cfg = {
 	.low_temp_limit		= 5,
-	.low_cap_limit		= 15,
+	.low_cap_limit		= 14,
+	.low_cap_limit_dual 	= 0,
 	.flash_info             = &msm_camera_sensor_s5k3h2yx_flash_info,
 };
 

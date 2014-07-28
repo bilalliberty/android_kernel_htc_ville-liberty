@@ -1,4 +1,4 @@
-/* Copyright (c) 2002,2008-2012, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2002,2008-2012,2014, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -17,27 +17,12 @@
 #include "kgsl.h"
 #include "kgsl_device.h"
 #include "kgsl_sharedmem.h"
-#include "kgsl_htc.h"
 
 #define KGSL_LOG_LEVEL_MAX     7
 
 struct dentry *kgsl_debugfs_dir;
 static struct dentry *pm_d_debugfs;
 struct dentry *proc_d_debugfs;
-
-static int ctx_dump_set(void* data, u64 val)
-{
-	struct kgsl_device *device = data;
-
-	read_lock(&device->context_lock);
-	kgsl_dump_contextpid_locked(&device->context_idr);
-	read_unlock(&device->context_lock);
-	return 0;
-}
-
-DEFINE_SIMPLE_ATTRIBUTE(ctx_dump_fops,
-		NULL,
-		ctx_dump_set, "%llu\n");
 
 static int pm_dump_set(void *data, u64 val)
 {
@@ -153,6 +138,11 @@ static int memfree_hist_print(struct seq_file *s, void *unused)
 	p = wptr;
 	for (;;) {
 		kgsl_get_memory_usage(str, sizeof(str), p->flags);
+		/*
+		 * if the ring buffer is not filled up yet
+		 * all its empty elems have size==0
+		 * just skip them ...
+		*/
 		if (p->size)
 			seq_printf(s, "%8d %08x %8d %11s\n",
 				p->pid, p->gpuaddr, p->size, str);
@@ -200,10 +190,8 @@ void kgsl_device_debugfs_init(struct kgsl_device *device)
 				&pwr_log_fops);
 	debugfs_create_file("memfree_history", 0444, device->d_debugfs, device,
 				&memfree_hist_fops);
-	debugfs_create_file("contexpid_dump",  0644, device->d_debugfs, device,
-				&ctx_dump_fops);
 
-	
+	/* Create postmortem dump control files */
 
 	pm_d_debugfs = debugfs_create_dir("postmortem", device->d_debugfs);
 
@@ -272,8 +260,10 @@ static void print_mem_entry(struct seq_file *s, struct kgsl_mem_entry *entry)
 
 	kgsl_get_memory_usage(usage, sizeof(usage), m->flags);
 
-	seq_printf(s, "%08x %8d %5d %5s %10s %16s %5d\n",
-			m->gpuaddr, m->size, entry->id, flags,
+	seq_printf(s, "%pK %pK %8zd %5d %5s %10s %16s %5d\n",
+			(unsigned long *) m->gpuaddr,
+			(unsigned long *) m->useraddr,
+			m->size, entry->id, flags,
 			memtype_str(entry->memtype), usage, m->sglen);
 }
 
@@ -284,10 +274,11 @@ static int process_mem_print(struct seq_file *s, void *unused)
 	struct kgsl_process_private *private = s->private;
 	int next = 0;
 
-	seq_printf(s, "%8s %8s %5s %5s %10s %16s %5s\n",
-		   "gpuaddr", "size", "id", "flags", "type", "usage", "sglen");
+	seq_printf(s, "%8s %8s %8s %5s %5s %10s %16s %5s\n",
+		   "gpuaddr", "useraddr", "size", "id", "flags", "type",
+		   "usage", "sglen");
 
-	
+	/* print all entries with a GPU address */
 	spin_lock(&private->mem_lock);
 
 	for (node = rb_first(&private->mem_rb); node; node = rb_next(node)) {
@@ -297,7 +288,7 @@ static int process_mem_print(struct seq_file *s, void *unused)
 
 	spin_unlock(&private->mem_lock);
 
-	
+	/* now print all the unbound entries */
 	while (1) {
 		rcu_read_lock();
 		entry = idr_get_next(&private->mem_idr, &next);
@@ -333,7 +324,7 @@ kgsl_process_init_debugfs(struct kgsl_process_private *private)
 	snprintf(name, sizeof(name), "%d", private->pid);
 
 	private->debug_root = debugfs_create_dir(name, proc_d_debugfs);
-	debugfs_create_file("mem", 0400, private->debug_root, private,
+	debugfs_create_file("mem", 0444, private->debug_root, private,
 			    &process_mem_fops);
 }
 
