@@ -56,6 +56,7 @@ static struct workqueue_struct *cam_vcm_off_wq;
 static struct work_struct cam_vcm_off_work;
 static int is_actuator_probe_success = 0;
 static void cam_on_check_vcm(void);
+static atomic_t serv_running[MAX_NUM_ACTIVE_CAMERA];
 
 module_param(msm_camera_v4l2_nr, uint, 0644);
 MODULE_PARM_DESC(msm_camera_v4l2_nr, "videoX start number, -1 is autodetect");
@@ -335,6 +336,11 @@ static int msm_server_control(struct msm_cam_server_dev *server_dev,
 	void *ctrlcmd_data;
 	int loop = 0; 
 
+	if (!atomic_read(&serv_running[pcam->server_queue_idx]) && out->type != MSM_V4L2_OPEN) {
+		pr_info("%s: daemon hasn't subscribed yet!\n", __func__);
+		return -EIO;
+	}
+
 	event_qcmd = kzalloc(sizeof(struct msm_queue_cmd), GFP_KERNEL);
 	if (!event_qcmd) {
 		pr_err("%s Insufficient memory. return", __func__);
@@ -522,6 +528,10 @@ static int msm_send_close_server(struct msm_cam_v4l2_device *pcam)
 
 	
 	rc = msm_server_control(&g_server_dev, &ctrlcmd);
+	if (rc == 0)   {
+		pr_info("%s: serv_running[%d] = %d\n", __func__,pcam->server_queue_idx, 0);
+		atomic_set(&serv_running[pcam->server_queue_idx],0);
+	}
 
 	return rc;
 }
@@ -2053,6 +2063,10 @@ static int msm_open(struct file *f)
 			pr_err("%s: msm_send_open_server failed %d\n",
 				__func__, rc);
 			goto msm_send_open_server_failed;
+		}
+		if (rc == 0)   {
+			pr_info("%s: serv_running[%d] = %d \n", __func__,pcam->server_queue_idx, 1);
+			atomic_set(&serv_running[pcam->server_queue_idx],1);
 		}
 	}
 	mutex_unlock(&pcam->vid_lock);
