@@ -300,6 +300,7 @@ void elite_lcd_id_power(int pull);
 
 int __init elite_init_keypad(void);
 int __init elite_gpiomux_init(void);
+void __init msm8960_gfx_init(void);
 
 extern struct msm_camera_board_info elite_camera_board_info;
 void msm8960_init_cam(void);
