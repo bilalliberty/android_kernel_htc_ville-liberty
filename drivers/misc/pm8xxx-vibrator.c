@@ -19,6 +19,7 @@
 #include <linux/slab.h>
 #include <linux/mfd/pm8xxx/core.h>
 #include <linux/mfd/pm8xxx/vibrator.h>
+#include <linux/sched.h>
 
 #include "../staging/android/timed_output.h"
 
@@ -43,7 +44,6 @@ struct pm8xxx_vib {
 	struct hrtimer vib_timer;
 	struct timed_output_dev timed_dev;
 	spinlock_t lock;
-	struct work_struct work;
 	struct device *dev;
 	const struct pm8xxx_vibrator_platform_data *pdata;
 	int state;
@@ -52,6 +52,8 @@ struct pm8xxx_vib {
 };
 static struct pm8xxx_vib *vib_dev;
 static int switch_state = 1;
+static int time_th = -1;
+static int vib_notified = 0;
 int pm8xxx_vibrator_config(struct pm8xxx_vib_config *vib_config)
 {
 	u8 reg = 0;
@@ -155,6 +157,10 @@ static int pm8xxx_vib_set_off(struct pm8xxx_vib *vib)
 		VIB_ERR_LOG("%s writing pmic fail, ret:%X\n", __func__, rc);
 		return rc;
 	}
+	if (vib->pdata->camera_off_cb && vib_notified == 1) {
+		vib->pdata->camera_off_cb();
+		vib_notified = 0;
+	}
 	__dump_vib_regs(vib, "vib_set_end");
 	VIB_INFO_LOG("%s - \n", __func__);
 	return rc;
@@ -164,8 +170,12 @@ static void pm8xxx_vib_enable(struct timed_output_dev *dev, int value)
 {
 	struct pm8xxx_vib *vib = container_of(dev, struct pm8xxx_vib,
 					 timed_dev);
+	if (time_th >= 0 && value > time_th && vib->pdata->camera_cb) {
+		vib->pdata->camera_cb();
+		vib_notified = 1;
+	}
 
-	VIB_INFO_LOG("%s vibrate period: %d msec\n",__func__,value);
+	VIB_INFO_LOG("%s vibrate period: %d msec: %s(parent:%s), tgid=%d\n",__func__,value, current->comm, current->parent->comm, current->tgid);
 retry:
 
 	if (hrtimer_try_to_cancel(&vib->vib_timer) < 0) {
@@ -185,13 +195,6 @@ retry:
 	}
 }
 
-static void pm8xxx_vib_update(struct work_struct *work)
-{
-	struct pm8xxx_vib *vib = container_of(work, struct pm8xxx_vib,
-					 work);
-
-	pm8xxx_vib_set_off(vib);
-}
 
 static int pm8xxx_vib_get_time(struct timed_output_dev *dev)
 {
@@ -211,7 +214,6 @@ static enum hrtimer_restart pm8xxx_vib_timer_func(struct hrtimer *timer)
 							 vib_timer);
 	VIB_INFO_LOG("%s \n",__func__);
 	pm8xxx_vib_set_off(vib);
-	
 
 	return HRTIMER_NORESTART;
 }
@@ -254,7 +256,6 @@ static int pm8xxx_vib_suspend(struct device *dev)
 	struct pm8xxx_vib *vib = dev_get_drvdata(dev);
 
 	hrtimer_cancel(&vib->vib_timer);
-	cancel_work_sync(&vib->work);
 	
 	pm8xxx_vib_set_off(vib);
 
@@ -282,8 +283,26 @@ static ssize_t switch_store(
         switch_state = switch_status;
         return size;
 }
+static ssize_t threshold_show(struct device *dev, struct device_attribute *attr,
+                char *buf)
+{
+        return sprintf(buf, "time_threshold:%d \n", time_th);
+}
+
+static ssize_t threshold_store(
+                struct device *dev, struct device_attribute *attr,
+                const char *buf, size_t size)
+{
+        int time_buf;
+        time_buf = -1;
+        sscanf(buf, "%d ",&time_buf);
+        VIB_INFO_LOG("%s: %d\n",__func__,time_buf);
+        time_th = time_buf;
+        return size;
+}
 
 static DEVICE_ATTR(function_switch, S_IRUGO | S_IWUSR, switch_show, switch_store);
+static DEVICE_ATTR(time_threshold, S_IRUGO | S_IWUSR, threshold_show, threshold_store);
 
 static int __devinit pm8xxx_vib_probe(struct platform_device *pdev)
 
@@ -308,9 +327,10 @@ static int __devinit pm8xxx_vib_probe(struct platform_device *pdev)
 	vib->pdata	= pdata;
 	vib->level	= pdata->level_mV / 100;
 	vib->dev	= &pdev->dev;
+	if (pdata->threshold)
+		time_th = pdata->threshold;
 
 	spin_lock_init(&vib->lock);
-	INIT_WORK(&vib->work, pm8xxx_vib_update);
 
 	hrtimer_init(&vib->vib_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
 	vib->vib_timer.function = pm8xxx_vib_timer_func;
@@ -343,6 +363,10 @@ static int __devinit pm8xxx_vib_probe(struct platform_device *pdev)
     if (rc < 0) {
 		VIB_ERR_LOG("%s, create sysfs fail: function_switch\n", __func__);
 	}
+    rc = device_create_file(vib->timed_dev.dev, &dev_attr_time_threshold);
+    if (rc < 0) {
+		VIB_ERR_LOG("%s, create sysfs fail: time_threshold\n", __func__);
+	}
 
 	pm8xxx_vib_enable(&vib->timed_dev, pdata->initial_vibrate_ms);
 
@@ -359,7 +383,6 @@ static int __devexit pm8xxx_vib_remove(struct platform_device *pdev)
 {
 	struct pm8xxx_vib *vib = platform_get_drvdata(pdev);
 
-	cancel_work_sync(&vib->work);
 	hrtimer_cancel(&vib->vib_timer);
 	timed_output_dev_unregister(&vib->timed_dev);
 	platform_set_drvdata(pdev, NULL);
