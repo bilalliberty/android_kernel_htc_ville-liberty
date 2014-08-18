@@ -677,7 +677,10 @@ EXPORT_SYMBOL(board_serialno);
 
 int board_get_usb_ats(void)
 {
-	return usb_ats;
+	if (get_debug_flag() & DEBUG_FLAG_ENABLE_ATS_FLAG)
+		return 1;
+	else
+		return usb_ats;
 }
 EXPORT_SYMBOL(board_get_usb_ats);
 
@@ -740,6 +743,18 @@ int __init board_wifi_setting(char *s)
 	return 1;
 }
 __setup("wificd=", board_wifi_setting);
+
+char model_id[32];
+char *board_get_mid(void)
+{
+	return model_id;
+}
+static int __init board_set_mid(char *mid)
+{
+	strncpy(model_id, mid, sizeof(model_id));
+	return 1;
+}
+__setup("androidboot.mid=", board_set_mid);
 
 int get_wifi_setting(void)
 {

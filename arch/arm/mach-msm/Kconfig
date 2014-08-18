@@ -1778,6 +1778,26 @@ config MSM_IPC_ROUTER_SMD_XPRT
 	help
 	  SMD Transport Layer for IPC Router
 
+config MSM_IPC_ROUTER_HSIC_XPRT
+	depends on USB_QCOM_IPC_BRIDGE
+	depends on MSM_IPC_ROUTER
+	bool "MSM HSIC XPRT Layer"
+	help
+	  HSIC Transport Layer that enables off-chip communication of
+	  IPC Router. When the HSIC endpoint becomes available, this layer
+	  registers the transport with IPC Router and enable message
+	  exchange.
+
+config MSM_IPC_ROUTER_SECURITY
+	depends on MSM_IPC_ROUTER
+	bool "MSM IPC Router Security support"
+	help
+	  This feature of IPC Router will enforce security rules
+	  configured by a security script from the user-space. IPC Router
+	  once configured with the security rules will ensure that the
+	  sender of the message to a service belongs to the relevant
+	  Linux group as configured by the security script.
+
 config MSM_ONCRPCROUTER_DEBUG
 	depends on MSM_ONCRPCROUTER
 	default y
@@ -2771,6 +2791,21 @@ config MSM_L1_ERR_PANIC
 
 	  For production builds, you should probably say 'N' here.
 
+config MSM_L1_RECOV_ERR_PANIC
+	bool "Panic on recoverable L1 cache errors"
+	depends on MSM_CACHE_ERP && MSM_L1_ERR_PANIC
+	help
+	  Certain CPU designs may be able to automatically recover from certain
+	  kinds of L1 cache errors, even though the L1 cache itself may not
+	  support error correction. These errors should not result in any kind
+	  of corruption, but their presence is nevertheless an indication of
+	  poor system health. To cause the kernel to panic whenever a
+	  recoverable L1 cache error is detected, say 'Y' here. This may be
+	  useful as a debugging technique if general system instability is
+	  suspected.
+
+	  For production builds, you should definitely say 'N' here.
+
 config MSM_L1_ERR_LOG
 	bool "Log CPU ERP events to system memory"
 	depends on MSM_CACHE_ERP
@@ -3107,6 +3142,12 @@ config MSM_NONSMD_PACKET_FILTER
 	help
 	  The white TCP port list is updated in attribute
 	  repying on RIL to notify modem.
+
+config MONITOR_STREAMING_PORT_SOCKET
+	bool "monitor streaming port"
+	default n
+	help
+	  Monitor if any streaming port is connected
 
 config IO_FOOTPRINT
 	bool "Trace I/O for each CPU"
