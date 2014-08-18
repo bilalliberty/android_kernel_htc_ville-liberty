@@ -273,6 +273,7 @@ void msm8960_init_mmc(void);
 
 int __init ville_init_keypad(void);
 int __init ville_gpiomux_init(void);
+void __init msm8960_gfx_init(void);
 
 extern struct msm_camera_board_info ville_camera_board_info;
 void msm8960_init_cam(void);

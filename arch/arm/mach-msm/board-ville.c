@@ -854,6 +854,9 @@ static struct htc_battery_platform_data htc_battery_pdev_data = {
 	.igauge.get_battery_id = pm8921_get_batt_id,
 	.igauge.get_battery_soc = pm8921_bms_get_batt_soc,
 	.igauge.get_battery_cc = pm8921_bms_get_batt_cc,
+	.igauge.store_battery_data = pm8921_bms_store_battery_data_emmc,
+	.igauge.store_battery_ui_soc = pm8921_bms_store_battery_ui_soc,
+	.igauge.get_battery_ui_soc = pm8921_bms_get_battery_ui_soc,
 	.igauge.is_battery_temp_fault = pm8921_is_batt_temperature_fault,
 	.igauge.is_battery_full = pm8921_is_batt_full,
 	.igauge.get_attr_text = pm8921_gauge_get_attr_text,
@@ -3584,6 +3587,12 @@ struct platform_device device_htc_ramdump = {
 	.dev = {.platform_data = &ville_ramdump_data},
 };
 
+static struct platform_device msm_dev_avtimer_device = {
+	.name = "dev_avtimer",
+	.dev = { .platform_data = &dev_avtimer_pdata },
+};
+
+
 static struct platform_device *common_devices[] __initdata = {
 	&ram_console_device,
 	&msm8960_device_acpuclk,
@@ -3742,37 +3751,6 @@ static void __init msm8960_i2c_init(void)
 					&msm8960_i2c_qup_gsbi5_pdata;
 }
 
-static void __init msm8960_gfx_init(void)
-{
-	struct kgsl_device_platform_data *kgsl_3d0_pdata =
-		msm_kgsl_3d0.dev.platform_data;
-	uint32_t soc_platform_version = socinfo_get_version();
-
-	
-	if (cpu_is_msm8960ab()) {
-		kgsl_3d0_pdata->chipid = ADRENO_CHIPID(3, 2, 1, 0);
-		
-		kgsl_3d0_pdata->pwrlevel[1].gpu_freq = 320000000;
-	} else {
-		kgsl_3d0_pdata->iommu_count = 1;
-		if (SOCINFO_VERSION_MAJOR(soc_platform_version) == 1) {
-			kgsl_3d0_pdata->pwrlevel[0].gpu_freq = 320000000;
-			kgsl_3d0_pdata->pwrlevel[1].gpu_freq = 266667000;
-		}
-		if (SOCINFO_VERSION_MAJOR(soc_platform_version) >= 3) {
-			kgsl_3d0_pdata->chipid = ADRENO_CHIPID(2, 2, 0, 6);
-		}
-	}
-
-	
-	platform_device_register(&msm_kgsl_3d0);
-
-	
-	if (!cpu_is_msm8960ab()) {
-		platform_device_register(&msm_kgsl_2d0);
-		platform_device_register(&msm_kgsl_2d1);
-	}
-}
 
 
 #ifdef CONFIG_HTC_BATT_8960
@@ -4696,6 +4674,8 @@ static void __init ville_init(void)
 
 	msm_pm_init_sleep_status_data(&msm_pm_slp_sts_data);
 	msm_pm_radio_info_init(MSM_SHARED_RAM_BASE + 0x1F0000);
+	
+	platform_device_register(&msm_dev_avtimer_device);
 }
 
 #define PHY_BASE_ADDR1  0x80400000
